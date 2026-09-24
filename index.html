@@ -392,112 +392,27 @@
   </div>
 
   <script>
-    // Scriptning eng yuqori qismiga qo'yiladi:
+// 1. Backend va WebSocket sozlamalari
 const API_URL = 'https://lamp-trading-backend.onrender.com';
-// const socket = new WebSocket('wss://lamp-trading-backend.onrender.com');
-    // 1. Pozitsiya ochish (BUY / SELL tugmasi bosilganda)
-async function openTrade(type) {
-  const token = localStorage.getItem('token');
-  const pair = 'BTC'; // Tanlangan valyuta
-  const amount = parseFloat(document.getElementById('tradeAmount').value) || 100;
-  const leverage = parseInt(document.getElementById('tradeLeverage').value) || 10;
+const socket = new WebSocket('wss://lamp-trading-backend.onrender.com');
 
-  try {
-    const res = await fetch(`${API_URL}/api/trade/open`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + token
-      },
-      body: JSON.stringify({ pair, type, amount, leverage })
-    });
-
-    const data = await res.json();
-    if (res.ok) {
-      alert(`Pozitsiya ochildi: ${type} $${amount}`);
-      updateUserDashboard(data.balance, data.positions);
-    } else {
-      alert('Xatolik: ' + data.error);
-    }
-  } catch (err) {
-    console.error('Xatolar:', err);
-  }
-}
-
-// 2. Pozitsiyani Yopish
-async function closeTrade(positionId) {
-  const token = localStorage.getItem('token');
-
-  try {
-    const res = await fetch(`${API_URL}/api/trade/close`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + token
-      },
-      body: JSON.stringify({ positionId })
-    });
-
-    const data = await res.json();
-    if (res.ok) {
-      alert('Pozitsiya yopildi!');
-      updateUserDashboard(data.balance, data.positions);
-    } else {
-      alert('Xatolik: ' + data.error);
-    }
-  } catch (err) {
-    console.error('Xatolar:', err);
-  }
-}
-
-// 3. Parolni o'zgartirish
-async function changePassword(oldPassword, newPassword) {
-  const token = localStorage.getItem('token');
-
-  try {
-    const res = await fetch(`${API_URL}/api/user/change-password`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + token
-      },
-      body: JSON.stringify({ oldPassword, newPassword })
-    });
-
-    const data = await res.json();
-    alert(data.message || data.error);
-  } catch (err) {
-    console.error('Xatolar:', err);
-  }
-}
-    // 1. Backend bilan WebSocket ulanishi (Jonli narxlar uchun)
-// const socket = new WebSocket('wss://lamp-trading-backend.onrender.com');
-
-// socket.onopen = () => {
-//   console.log('✅ Server bilan WebSocket aloqasi o\'rnatildi!');
-// };
-
-socket.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  
-  if (data.type === 'PRICE_UPDATE') {
-    // Serverdan kelayotgan real-vaqt narxlari
-    const livePrices = data.prices;
-    
-    // Agar ekranda narxlarni ko'rsatadigan elementlar bo'lsa, ularни yangilaymiz:
-    if (document.getElementById('btcPrice')) {
-      document.getElementById('btcPrice').innerText = '$' + livePrices.BTC.toFixed(2);
-    }
-    if (document.getElementById('ethPrice')) {
-      document.getElementById('ethPrice').innerText = '$' + livePrices.ETH.toFixed(2);
-    }
-    if (document.getElementById('solPrice')) {
-      document.getElementById('solPrice').innerText = '$' + livePrices.SOL.toFixed(2);
-    }
-  }
+socket.onopen = () => {
+  console.log('✅ Server bilan WebSocket aloqasi o\'rnatildi!');
 };
 
-// 2. Real Login funksiyasi (Server API orqali)
+socket.onmessage = (event) => {
+  try {
+    const data = JSON.parse(event.data);
+    if (data.type === 'PRICE_UPDATE') {
+      const livePrices = data.prices;
+      if (document.getElementById('btcPrice')) document.getElementById('btcPrice').innerText = '$' + livePrices.BTC.toFixed(2);
+      if (document.getElementById('ethPrice')) document.getElementById('ethPrice').innerText = '$' + livePrices.ETH.toFixed(2);
+      if (document.getElementById('solPrice')) document.getElementById('solPrice').innerText = '$' + livePrices.SOL.toFixed(2);
+    }
+  } catch(e) {}
+};
+
+// 2. Real Login (Render API)
 async function loginUser(username, password) {
   try {
     const response = await fetch(`${API_URL}/api/auth/login`, {
@@ -509,24 +424,38 @@ async function loginUser(username, password) {
     const data = await response.json();
 
     if (response.ok) {
-      // JWT token va foydalanuvchi ma'lumotlarini saqlash
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
 
-      alert('Xush kelibsiz, ' + data.user.username + '!');
-      
-      // Kirish oynasini yopib, Dashboard oynasiga o'tish
-      showDashboard(data.user);
+      playBeep(800, 'square', 0.2);
+      authBox.style.display = "none";
+      lampStage.style.display = "none";
+      appBox.style.display = "grid";
+
+      currentUser = data.user.username;
+      if (document.getElementById('displayUsername')) {
+        document.getElementById('displayUsername').textContent = currentUser;
+      }
+
+      updateUI();
+      initChartEngine();
+      renderNews();
+      showToast(`Xush kelibsiz, ${currentUser}!`, 'success');
     } else {
-      alert('Xatolik: ' + data.error);
+      playBeep(200, 'sawtooth', 0.3);
+      const msgElem = document.getElementById('loginMessage');
+      if (msgElem) {
+        msgElem.style.color = "#f23645";
+        msgElem.textContent = data.error || 'Login yoki parol xato!';
+      }
     }
   } catch (error) {
-    console.error('Server bilan ulanishda xatolik:', error);
-    alert('Serverga ulanib bo\'lmadi. Backend yoniqligini tekshiring!');
+    console.error('Server ulanish xatosi:', error);
+    showToast('Serverga ulanib bo\'lmadi. Backend yoniqligini tekshiring!', 'error');
   }
 }
 
-// 3. Real Ro'yxatdan o'tish (Register) funksiyasi
+// 3. Real Ro'yxatdan o'tish (Register)
 async function registerUser(username, password) {
   try {
     const response = await fetch(`${API_URL}/api/auth/register`, {
@@ -538,697 +467,675 @@ async function registerUser(username, password) {
     const data = await response.json();
 
     if (response.ok) {
-      alert('Ro\'yxatdan o\'tish muvaffaqiyatli! Endi tizimga kiring.');
+      const regElem = document.getElementById('regMessage');
+      if (regElem) {
+        regElem.style.color = "#089981";
+        regElem.textContent = "Muvaffaqiyatli! Endi tizimga kiring.";
+      }
+      setTimeout(() => {
+        document.getElementById('registerFormSection').style.display = "none";
+        document.getElementById('loginFormSection').style.display = "block";
+      }, 1000);
     } else {
-      alert('Xatolik: ' + data.error);
+      const regElem = document.getElementById('regMessage');
+      if (regElem) {
+        regElem.style.color = "#f23645";
+        regElem.textContent = data.error || "Ro'yxatdan o'tishda xatolik!";
+      }
     }
   } catch (error) {
     console.error('Xatolik:', error);
+    showToast("Server bilan ulanishda xatolik!", "error");
   }
 }
-    const body = document.body;
-    const authBox = document.getElementById('authBox');
-    const lampStage = document.getElementById('lampStage');
-    const appBox = document.getElementById('appBox');
 
-    let currentUser = null;
-    let usdBalance = 10000.00;
-    let selectedPair = 'BTC';
-    let tfMultiplier = 1;
+// 4. Formani boshqarish
+async function handleLogin(e) {
+  e.preventDefault();
+  const u = document.getElementById('loginUsername').value.trim();
+  const p = document.getElementById('loginPassword').value.trim();
 
-    let prices = { BTC: 65000.00, ETH: 3500.00, SOL: 145.00 };
-    let positions = [];
-    let tradeHistory = [];
-    let usedPromos = [];
-    let activeAlerts = [];
-
-    let candles = [];
-    let macdHist = [];
-
-    // BOT & COPY-TRADING VARIABLES
-    let isBotActive = false;
-    let botCapital = 0;
-    let botPnl = 0;
-    let botTrades = 0;
-    let botTimer = null;
-
-    /* WEB AUDIO API */
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    function playBeep(freq = 440, type = 'sine', duration = 0.1) {
-      try {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = type;
-        osc.frequency.value = freq;
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start();
-        gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duration);
-        osc.stop(audioCtx.currentTime + duration);
-      } catch(e){}
+  if (!u || !p) {
+    const msgElem = document.getElementById('loginMessage');
+    if (msgElem) {
+      msgElem.style.color = "#f23645";
+      msgElem.textContent = "Login va parolni kiriting!";
     }
+    return;
+  }
 
-    function showToast(msg, type = 'info') {
-      const container = document.getElementById('toastContainer');
-      const toast = document.createElement('div');
-      toast.className = 'toast';
-      if(type === 'success') toast.style.borderLeftColor = '#089981';
-      if(type === 'error') toast.style.borderLeftColor = '#f23645';
-      toast.textContent = msg;
-      container.appendChild(toast);
-      setTimeout(() => toast.remove(), 4000);
+  await loginUser(u, p);
+}
+
+async function handleRegister(e) {
+  e.preventDefault();
+  const u = document.getElementById('regUsername').value.trim();
+  const p = document.getElementById('regPassword').value.trim();
+
+  if (!u || !p) {
+    const regElem = document.getElementById('regMessage');
+    if (regElem) {
+      regElem.style.color = "#f23645";
+      regElem.textContent = "Barcha maydonlarni to'ldiring!";
     }
+    return;
+  }
 
-    /* TRADER RANK SYSTEM */
-    function getTraderRank(bal = usdBalance) {
-      if (bal >= 100000) return "Whale 🐋";
-      if (bal >= 50000) return "Gold VIP 🏆";
-      if (bal >= 20000) return "Silver Trader 🥈";
-      return "Bronze Trader 🥉";
+  await registerUser(u, p);
+}
+
+// 5. Asosiy o'zgaruvchilar va UI
+const body = document.body;
+const authBox = document.getElementById('authBox');
+const lampStage = document.getElementById('lampStage');
+const appBox = document.getElementById('appBox');
+
+let currentUser = null;
+let usdBalance = 10000.00;
+let selectedPair = 'BTC';
+let tfMultiplier = 1;
+
+let prices = { BTC: 65000.00, ETH: 3500.00, SOL: 145.00 };
+let positions = [];
+let tradeHistory = [];
+let usedPromos = [];
+let activeAlerts = [];
+
+let candles = [];
+let macdHist = [];
+
+let isBotActive = false;
+let botCapital = 0;
+let botPnl = 0;
+let botTrades = 0;
+let botTimer = null;
+
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function playBeep(freq = 440, type = 'sine', duration = 0.1) {
+  try {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duration);
+    osc.stop(audioCtx.currentTime + duration);
+  } catch(e){}
+}
+
+function showToast(msg, type = 'info') {
+  const container = document.getElementById('toastContainer');
+  if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  if(type === 'success') toast.style.borderLeftColor = '#089981';
+  if(type === 'error') toast.style.borderLeftColor = '#f23645';
+  toast.textContent = msg;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 4000);
+}
+
+function getTraderRank(bal = usdBalance) {
+  if (bal >= 100000) return "Whale 🐋";
+  if (bal >= 50000) return "Gold VIP 🏆";
+  if (bal >= 20000) return "Silver Trader 🥈";
+  return "Bronze Trader 🥉";
+}
+
+function saveUserData() {
+  if (!currentUser) return;
+  let users = JSON.parse(localStorage.getItem('users')) || {};
+  if (users[currentUser]) {
+    users[currentUser].balance = usdBalance;
+    users[currentUser].positions = positions;
+    users[currentUser].tradeHistory = tradeHistory;
+    users[currentUser].usedPromos = usedPromos;
+    users[currentUser].botPnl = botPnl;
+    users[currentUser].botTrades = botTrades;
+    localStorage.setItem('users', JSON.stringify(users));
+  }
+}
+
+function resetUserBalance() {
+  if (!currentUser) return;
+  usdBalance = 10000.00;
+  botPnl = 0; botTrades = 0;
+  saveUserData();
+  updateUI();
+  showToast("Balansingiz $10,000 ga tiklandi!", "success");
+}
+
+function generateCandles() {
+  candles = []; macdHist = [];
+  let basePrice = prices[selectedPair];
+  for (let i = 0; i < 30; i++) {
+    let open = basePrice;
+    let close = open + (Math.random() - 0.48) * (basePrice * 0.002 * tfMultiplier);
+    let high = Math.max(open, close) + Math.random() * (basePrice * 0.001);
+    let low = Math.min(open, close) - Math.random() * (basePrice * 0.001);
+    candles.push({ open, high, low, close });
+    macdHist.push((Math.random() - 0.5) * 10);
+    basePrice = close;
+  }
+  prices[selectedPair] = basePrice;
+}
+generateCandles();
+
+function toggleLamp() { 
+  body.classList.toggle('lamp-on'); 
+  playBeep(body.classList.contains('lamp-on') ? 600 : 300, 'sine', 0.15);
+}
+
+document.getElementById('toRegister') && document.getElementById('toRegister').addEventListener('click', () => {
+  document.getElementById('loginFormSection').style.display = "none";
+  document.getElementById('registerFormSection').style.display = "block";
+});
+
+document.getElementById('toLogin') && document.getElementById('toLogin').addEventListener('click', () => {
+  document.getElementById('registerFormSection').style.display = "none";
+  document.getElementById('loginFormSection').style.display = "block";
+});
+
+document.getElementById('loginForm') && document.getElementById('loginForm').addEventListener('submit', handleLogin);
+document.getElementById('registerForm') && document.getElementById('registerForm').addEventListener('submit', handleRegister);
+
+function handleLogout() {
+  if(isBotActive) toggleAutoBot();
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  currentUser = null;
+  appBox.style.display = "none";
+  lampStage.style.display = "flex";
+  authBox.style.display = "block";
+  body.classList.remove('lamp-on');
+}
+
+function setTimeframe(tf, btn) {
+  tfMultiplier = tf;
+  document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  generateCandles();
+}
+
+function applyPromo() {
+  const code = document.getElementById('promoInput').value.trim().toUpperCase();
+  if (usedPromos.includes(code)) return showToast("Promokod ishlatilgan!", "error");
+  if (code === "BONUS100") { usdBalance += 1000; usedPromos.push(code); showToast("+$1,000 Qo'shildi!", "success"); playBeep(700, 'sine', 0.2); }
+  else if (code === "PROVIP") { usdBalance *= 1.5; usedPromos.push(code); showToast("Depozit +50% ga oshdi!", "success"); playBeep(900, 'sine', 0.3); }
+  else return showToast("Xato promokod!", "error");
+  
+  document.getElementById('promoInput').value = ""; 
+  saveUserData();
+  updateUI();
+}
+
+function claimDailyBonus() {
+  let win = Math.floor(100 + Math.random() * 400);
+  usdBalance += win; 
+  showToast(`🎉 Tabriklaymiz! Omadingiz kelib $${win} yutib oldingiz!`, 'success'); 
+  playBeep(1000, 'triangle', 0.4);
+  saveUserData();
+  updateUI();
+}
+
+function setPriceAlert() {
+  let val = parseFloat(document.getElementById('alertPriceInput').value);
+  if (!val) return showToast("Narxni kiriting!", 'error');
+  activeAlerts.push({ pair: selectedPair, price: val });
+  showToast(`🔔 ${selectedPair} $${val} ga yetganda xabar beriladi!`, 'info');
+  document.getElementById('alertPriceInput').value = "";
+}
+
+function startCopyTrade(traderName, winRate) {
+  let winProb = winRate / 100;
+  let amount = 500;
+  if (usdBalance < amount) return showToast("Balansda kamida $500 bo'lishi kerak!", "error");
+
+  usdBalance -= amount;
+  let isWin = Math.random() < winProb;
+  let profit = isWin ? (amount * (0.2 + Math.random() * 0.5)) : (-amount * 0.3);
+
+  setTimeout(() => {
+    usdBalance += (amount + profit);
+    if (profit >= 0) {
+      showToast(`👥 Copy-Trade (${traderName}): +$${profit.toFixed(2)} foyda!`, 'success');
+      playBeep(880, 'sine', 0.3);
+    } else {
+      showToast(`👥 Copy-Trade (${traderName}): -$${Math.abs(profit).toFixed(2)} zarar!`, 'error');
+      playBeep(250, 'sawtooth', 0.3);
     }
+    saveUserData();
+    updateUI();
+  }, 2000);
 
-    /* LOCALSTORAGE SYSTEM */
-    function saveUserData() {
-      if (!currentUser) return;
-      let users = JSON.parse(localStorage.getItem('users')) || {};
-      if (users[currentUser]) {
-        users[currentUser].balance = usdBalance;
-        users[currentUser].positions = positions;
-        users[currentUser].tradeHistory = tradeHistory;
-        users[currentUser].usedPromos = usedPromos;
-        users[currentUser].botPnl = botPnl;
-        users[currentUser].botTrades = botTrades;
-        localStorage.setItem('users', JSON.stringify(users));
-        localStorage.setItem('lastLoggedInUser', currentUser);
+  showToast(`👥 ${traderName} bitimiga $500 nusxalanmoqda...`, 'info');
+}
+
+function toggleAutoBot() {
+  const btn = document.getElementById('botToggleBtn');
+  const badge = document.getElementById('botStatusBadge');
+  
+  if (!isBotActive) {
+    let cap = parseFloat(document.getElementById('botCapitalInput').value);
+    if (!cap || cap <= 0 || cap > usdBalance) return showToast("Bot uchun yetarli kapital kiriting!", "error");
+    
+    botCapital = cap;
+    usdBalance -= botCapital;
+    isBotActive = true;
+    if(btn) { btn.textContent = "Botni To'xtatish"; btn.style.background = "#ff3333"; btn.style.color = "#fff"; }
+    if(badge) { badge.textContent = "YONIK (ISHLAMOQDA)"; badge.className = "badge badge-success"; }
+    
+    showToast("🤖 Auto-Bot savdoni boshladi!", "success");
+
+    botTimer = setInterval(() => {
+      let strategy = document.getElementById('botRiskStrategy') ? document.getElementById('botRiskStrategy').value : 'MEDIUM';
+      let multiplier = strategy === 'HIGH' ? 0.03 : (strategy === 'MEDIUM' ? 0.015 : 0.005);
+      
+      let tradeProfit = (Math.random() - 0.45) * (botCapital * multiplier);
+      botPnl += tradeProfit;
+      botTrades++;
+      
+      if(document.getElementById('botPnlDisplay')) {
+        document.getElementById('botPnlDisplay').textContent = (botPnl >= 0 ? "+$" : "-$") + Math.abs(botPnl).toFixed(2);
+        document.getElementById('botPnlDisplay').style.color = botPnl >= 0 ? "#089981" : "#f23645";
       }
-    }
-
-    function loadUserData(username) {
-      let users = JSON.parse(localStorage.getItem('users')) || {};
-      if (users[username]) {
-        currentUser = username;
-        usdBalance = users[username].balance !== undefined ? users[username].balance : 10000.00;
-        positions = users[username].positions || [];
-        tradeHistory = users[username].tradeHistory || [];
-        usedPromos = users[username].usedPromos || [];
-        botPnl = users[username].botPnl || 0;
-        botTrades = users[username].botTrades || 0;
-        document.getElementById('displayUsername').textContent = currentUser;
+      if(document.getElementById('botTradesCount')) {
+        document.getElementById('botTradesCount').textContent = botTrades + " ta";
       }
-    }
-
-    function resetUserBalance() {
-      if (!currentUser) return;
-      usdBalance = 10000.00;
-      botPnl = 0; botTrades = 0;
+      
       saveUserData();
       updateUI();
-      showToast("Balansingiz $10,000 ga tiklandi!", "success");
+    }, 3000);
+
+  } else {
+    clearInterval(botTimer);
+    usdBalance += (botCapital + botPnl);
+    isBotActive = false;
+    if(btn) { btn.textContent = "Botni Yoqish"; btn.style.background = "#00e5ff"; btn.style.color = "#000"; }
+    if(badge) { badge.textContent = "O'CHIRILGAN"; badge.className = "badge badge-danger"; }
+    
+    showToast("🤖 Bot to'xtatildi, mablag' balansingizga qaytarildi!", "info");
+    saveUserData();
+    updateUI();
+  }
+}
+
+function calculateRisk() {
+  let riskPct = parseFloat(document.getElementById('calcRiskPct').value) / 100;
+  let entry = parseFloat(document.getElementById('calcEntryPrice').value);
+  let sl = parseFloat(document.getElementById('calcSLPrice').value);
+
+  if (!entry || !sl || entry === sl) return showToast("To'g'ri narxlarni kiriting!", 'error');
+
+  let maxLossAllowed = usdBalance * riskPct;
+  let priceDiffPct = Math.abs(entry - sl) / entry;
+  let recommendedPositionSize = maxLossAllowed / priceDiffPct;
+
+  document.getElementById('calcResult').textContent = `Tavsiya etiladigan maksimal pozitsiya hajmi: $${recommendedPositionSize.toFixed(2)} (Maks. xataringiz: $${maxLossAllowed.toFixed(2)})`;
+}
+
+function changeCryptoPair() {
+  selectedPair = document.getElementById('cryptoPairSelect').value;
+  if(document.getElementById('pairTitleDisplay')) document.getElementById('pairTitleDisplay').textContent = `Joriy ${selectedPair} Narxi`;
+  generateCandles();
+}
+
+function updateUI() {
+  if(document.getElementById('usdBalance')) document.getElementById('usdBalance').textContent = "$" + usdBalance.toFixed(2);
+  if(document.getElementById('activePosCount')) document.getElementById('activePosCount').textContent = positions.length + " ta";
+  if(document.getElementById('traderRankDisplay')) document.getElementById('traderRankDisplay').textContent = getTraderRank();
+  
+  let overallPnl = positions.reduce((acc, pos) => acc + calculatePNL(pos), 0);
+  let pnlElem = document.getElementById('totalPnlDisplay');
+  if (pnlElem) {
+    pnlElem.textContent = (overallPnl >= 0 ? "+$" : "-$") + Math.abs(overallPnl).toFixed(2);
+    pnlElem.style.color = overallPnl >= 0 ? "#089981" : "#f23645";
+  }
+
+  renderPositions(); renderHistory(); renderAnalytics(); renderOrderBook(); renderLeaderboard();
+}
+
+function switchPage(pageId, element) {
+  document.querySelectorAll('.content-page').forEach(page => page.classList.remove('active'));
+  document.querySelectorAll('.menu-item').forEach(item => item.classList.remove('active'));
+  if(document.getElementById(pageId)) document.getElementById(pageId).classList.add('active'); 
+  if(element) element.classList.add('active');
+}
+
+// 6. Grafiklarni chizish va indicatorlar
+function initChartEngine() {
+  const canvas = document.getElementById('tradingChart'); if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight;
+
+  const macdCanvas = document.getElementById('macdChart'); 
+  const macdCtx = macdCanvas ? macdCanvas.getContext('2d') : null;
+  if(macdCanvas) { macdCanvas.width = macdCanvas.offsetWidth; macdCanvas.height = macdCanvas.offsetHeight; }
+
+  const rsiCanvas = document.getElementById('rsiChart'); 
+  const rsiCtx = rsiCanvas ? rsiCanvas.getContext('2d') : null;
+  if(rsiCanvas) { rsiCanvas.width = rsiCanvas.offsetWidth; rsiCanvas.height = rsiCanvas.offsetHeight; }
+
+  let tickCounter = 0;
+
+  setInterval(() => {
+    let curPrice = prices[selectedPair];
+    let change = (Math.random() - 0.48) * (curPrice * 0.001 * tfMultiplier);
+    prices[selectedPair] += change;
+
+    let lastCandle = candles[candles.length - 1];
+    if(lastCandle) {
+      lastCandle.close = prices[selectedPair];
+      if (prices[selectedPair] > lastCandle.high) lastCandle.high = prices[selectedPair];
+      if (prices[selectedPair] < lastCandle.low) lastCandle.low = prices[selectedPair];
     }
 
-    function generateCandles() {
-      candles = []; macdHist = [];
-      let basePrice = prices[selectedPair];
-      for (let i = 0; i < 30; i++) {
-        let open = basePrice;
-        let close = open + (Math.random() - 0.48) * (basePrice * 0.002 * tfMultiplier);
-        let high = Math.max(open, close) + Math.random() * (basePrice * 0.001);
-        let low = Math.min(open, close) - Math.random() * (basePrice * 0.001);
-        candles.push({ open, high, low, close });
-        macdHist.push((Math.random() - 0.5) * 10);
-        basePrice = close;
-      }
-      prices[selectedPair] = basePrice;
-    }
-    generateCandles();
-
-    if (!localStorage.getItem('users')) {
-      localStorage.setItem('users', JSON.stringify({ 
-        "admin": { password: "123", balance: 10000.00, positions: [], tradeHistory: [], usedPromos: [] } 
-      }));
+    tickCounter++;
+    if (tickCounter >= 5) {
+      tickCounter = 0;
+      candles.push({ open: prices[selectedPair], high: prices[selectedPair], low: prices[selectedPair], close: prices[selectedPair] });
+      macdHist.push((Math.random() - 0.5) * 10);
+      if (candles.length > 30) { candles.shift(); macdHist.shift(); }
     }
 
-    function toggleLamp() { 
-      body.classList.toggle('lamp-on'); 
-      playBeep(body.classList.contains('lamp-on') ? 600 : 300, 'sine', 0.15);
+    if(document.getElementById('livePrice')) document.getElementById('livePrice').textContent = "$" + prices[selectedPair].toFixed(2);
+    if(document.getElementById('currentPriceDisplay')) document.getElementById('currentPriceDisplay').textContent = "$" + prices[selectedPair].toFixed(2);
+
+    checkAlerts();
+    checkAutoCloseAndLiquidation();
+    updateUI();
+    drawCandlesticksAndBollinger(ctx, canvas);
+    if(macdCtx && macdCanvas) drawMACD(macdCtx, macdCanvas);
+    if(rsiCtx && rsiCanvas) drawRSI(rsiCtx, rsiCanvas);
+  }, 500);
+}
+
+function checkAlerts() {
+  activeAlerts.forEach((alertObj, index) => {
+    let cur = prices[alertObj.pair];
+    if (Math.abs(cur - alertObj.price) <= (cur * 0.001)) {
+      showToast(`🚨 ALERT: ${alertObj.pair} narxi $${alertObj.price.toFixed(2)} ga yetdi!`, 'info');
+      playBeep(1200, 'sine', 0.5);
+      activeAlerts.splice(index, 1);
+    }
+  });
+}
+
+function drawCandlesticksAndBollinger(ctx, canvas) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  let allHighs = candles.map(c => c.high);
+  let allLows = candles.map(c => c.low);
+  let minPrice = Math.min(...allLows); let maxPrice = Math.max(...allHighs);
+  let range = (maxPrice - minPrice) || 1;
+  let candleWidth = (canvas.width / candles.length) - 5;
+
+  let smaPoints = [];
+
+  candles.forEach((c, i) => {
+    let x = i * (candleWidth + 5) + 4;
+    let openY = canvas.height - ((c.open - minPrice) / range) * (canvas.height - 30) - 15;
+    let closeY = canvas.height - ((c.close - minPrice) / range) * (canvas.height - 30) - 15;
+    let highY = canvas.height - ((c.high - minPrice) / range) * (canvas.height - 30) - 15;
+    let lowY = canvas.height - ((c.low - minPrice) / range) * (canvas.height - 30) - 15;
+
+    let color = c.close >= c.open ? "#089981" : "#f23645";
+    ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 1.2;
+    ctx.moveTo(x + candleWidth / 2, highY); ctx.lineTo(x + candleWidth / 2, lowY); ctx.stroke();
+
+    ctx.fillStyle = color;
+    ctx.fillRect(x, Math.min(openY, closeY), candleWidth, Math.abs(closeY - openY) || 2);
+
+    let avg = (c.open + c.close + c.high + c.low) / 4;
+    let avgY = canvas.height - ((avg - minPrice) / range) * (canvas.height - 30) - 15;
+    smaPoints.push({ x: x + candleWidth / 2, y: avgY });
+  });
+
+  ctx.beginPath(); ctx.strokeStyle = "rgba(0, 229, 255, 0.4)"; ctx.lineWidth = 1;
+  smaPoints.forEach((p, i) => { if (i === 0) ctx.moveTo(p.x, p.y - 12); else ctx.lineTo(p.x, p.y - 12); });
+  smaPoints.forEach((p, i) => { ctx.lineTo(p.x, p.y + 12); });
+  ctx.stroke();
+
+  ctx.beginPath(); ctx.strokeStyle = "#ffea00"; ctx.lineWidth = 1.5;
+  smaPoints.forEach((p, i) => { if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
+  ctx.stroke();
+}
+
+function drawMACD(ctx, canvas) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  let step = canvas.width / macdHist.length;
+  macdHist.forEach((val, i) => {
+    let x = i * step;
+    let h = Math.abs(val) * 2;
+    ctx.fillStyle = val >= 0 ? "#089981" : "#f23645";
+    ctx.fillRect(x, canvas.height / 2 - (val >= 0 ? h : 0), step - 2, h || 2);
+  });
+}
+
+function drawRSI(ctx, canvas) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.beginPath(); ctx.strokeStyle = "#00e5ff"; ctx.lineWidth = 1.5;
+  let step = canvas.width / candles.length;
+  candles.forEach((c, i) => {
+    let dummyRsi = 30 + Math.abs(Math.sin(i + Date.now()/1000)) * 40;
+    let y = canvas.height - (dummyRsi / 100) * canvas.height;
+    if (i === 0) ctx.moveTo(i * step, y);
+    else ctx.lineTo(i * step, y);
+  });
+  ctx.stroke();
+}
+
+// 7. Savdo va Pozitsiyalarni boshqarish
+function openPosition(type) {
+  let amountInput = type === 'BUY' ? document.getElementById('buyAmount') : document.getElementById('sellAmount');
+  let leverageInput = type === 'BUY' ? document.getElementById('buyLeverage') : document.getElementById('sellLeverage');
+  let tpInput = type === 'BUY' ? document.getElementById('buyTP') : document.getElementById('sellTP');
+  let slInput = type === 'BUY' ? document.getElementById('buySL') : document.getElementById('sellSL');
+  let tsInput = type === 'BUY' ? document.getElementById('buyTS') : document.getElementById('sellTS');
+
+  let amount = parseFloat(amountInput ? amountInput.value : 100);
+  let leverage = parseInt(leverageInput ? leverageInput.value : 10);
+  let tp = tpInput && tpInput.value ? parseFloat(tpInput.value) : null;
+  let sl = slInput && slInput.value ? parseFloat(slInput.value) : null;
+  let ts = tsInput && tsInput.value ? parseFloat(tsInput.value) : null;
+
+  if (!amount || amount <= 0 || usdBalance < amount) return showToast("Balansda mablag' yetarli emas!", "error");
+
+  usdBalance -= amount;
+
+  positions.push({
+    id: Math.floor(1000 + Math.random() * 9000),
+    pair: selectedPair,
+    type: type,
+    amount: amount,
+    leverage: leverage,
+    entryPrice: prices[selectedPair],
+    highestPrice: prices[selectedPair],
+    lowestPrice: prices[selectedPair],
+    tp: tp,
+    sl: sl,
+    trailingStop: ts
+  });
+
+  playBeep(600, 'triangle', 0.2);
+  showToast(`${type} pozitsiyasi ochildi (#${positions[positions.length - 1].id})`, 'success');
+  if(amountInput) amountInput.value = "";
+  
+  saveUserData();
+  updateUI();
+}
+
+function calculatePNL(pos) {
+  let cur = prices[pos.pair];
+  let diff = pos.type === 'BUY' ? (cur - pos.entryPrice) : (pos.entryPrice - cur);
+  return (diff / pos.entryPrice) * pos.amount * pos.leverage;
+}
+
+function closePosition(index, reason = "Qo'lda yopildi") {
+  let pos = positions[index];
+  if(!pos) return;
+  let pnl = calculatePNL(pos);
+  usdBalance += pos.amount + pnl;
+
+  tradeHistory.push({
+    id: pos.id,
+    pair: pos.pair,
+    type: pos.type,
+    amount: pos.amount,
+    pnl: pnl,
+    closePrice: prices[pos.pair],
+    reason: reason
+  });
+
+  positions.splice(index, 1);
+  if(pnl >= 0) { playBeep(900, 'sine', 0.3); showToast(`Pozitsiya yopildi: +$${pnl.toFixed(2)}`, 'success'); }
+  else { playBeep(300, 'sawtooth', 0.3); showToast(`Pozitsiya yopildi: -$${Math.abs(pnl).toFixed(2)}`, 'error'); }
+
+  saveUserData();
+  updateUI();
+}
+
+function checkAutoCloseAndLiquidation() {
+  let lowestLiqPrice = Infinity;
+
+  for (let i = positions.length - 1; i >= 0; i--) {
+    let pos = positions[i];
+    let cur = prices[pos.pair];
+    let pnl = calculatePNL(pos);
+
+    if (pnl <= -pos.amount * 0.9) {
+      closePosition(i, "LIKVIDATSIYA ⚠️");
+      continue;
     }
 
-    document.getElementById('toRegister').addEventListener('click', () => {
-      document.getElementById('loginFormSection').style.display = "none";
-      document.getElementById('registerFormSection').style.display = "block";
-    });
+    let liqPrice = pos.type === 'BUY' 
+      ? pos.entryPrice * (1 - 0.9 / pos.leverage)
+      : pos.entryPrice * (1 + 0.9 / pos.leverage);
+    if (liqPrice < lowestLiqPrice) lowestLiqPrice = liqPrice;
 
-    document.getElementById('toLogin').addEventListener('click', () => {
-      document.getElementById('registerFormSection').style.display = "none";
-      document.getElementById('loginFormSection').style.display = "block";
-    });
-
-    function handleRegister(e) {
-      e.preventDefault();
-      const u = document.getElementById('regUsername').value.trim();
-      const p = document.getElementById('regPassword').value.trim();
-      let users = JSON.parse(localStorage.getItem('users')) || {};
-      if (users[u]) { document.getElementById('regMessage').textContent = "Bu nom band!"; }
-      else {
-        users[u] = { password: p, balance: 10000.00, positions: [], tradeHistory: [], usedPromos: [] };
-        localStorage.setItem('users', JSON.stringify(users));
-        document.getElementById('regMessage').style.color = "#089981";
-        document.getElementById('regMessage').textContent = "Muvaffaqiyatli!";
-        setTimeout(() => { document.getElementById('registerFormSection').style.display = "none"; document.getElementById('loginFormSection').style.display = "block"; }, 1000);
-      }
+    if (pos.tp) {
+      if (pos.type === 'BUY' && cur >= pos.tp) { closePosition(i, "Take Profit 🎯"); continue; }
+      if (pos.type === 'SELL' && cur <= pos.tp) { closePosition(i, "Take Profit 🎯"); continue; }
+    }
+    if (pos.sl) {
+      if (pos.type === 'BUY' && cur <= pos.sl) { closePosition(i, "Stop Loss 🛑"); continue; }
+      if (pos.type === 'SELL' && cur >= pos.sl) { closePosition(i, "Stop Loss 🛑"); continue; }
     }
 
-    function handleLogin(e) {
-      e.preventDefault();
-      const u = document.getElementById('loginUsername').value.trim();
-      const p = document.getElementById('loginPassword').value.trim();
-      let users = JSON.parse(localStorage.getItem('users')) || {};
-      
-      if (users[u] && users[u].password === p) {
-        playBeep(800, 'square', 0.2);
-        loadUserData(u);
-        setTimeout(() => {
-          authBox.style.display = "none"; lampStage.style.display = "none"; appBox.style.display = "grid";
-          updateUI(); initChartEngine(); renderNews();
-          showToast(`Xush kelibsiz, ${u}!`, 'success');
-        }, 400);
+    if (pos.trailingStop) {
+      if (pos.type === 'BUY') {
+        if (cur > pos.highestPrice) pos.highestPrice = cur;
+        if (cur <= pos.highestPrice - pos.trailingStop) { closePosition(i, "Trailing Stop 📈"); continue; }
       } else {
-        playBeep(200, 'sawtooth', 0.3);
-        document.getElementById('loginMessage').style.color = "#f23645";
-        document.getElementById('loginMessage').textContent = "Login yoki parol xato!";
+        if (cur < pos.lowestPrice) pos.lowestPrice = cur;
+        if (cur >= pos.lowestPrice + pos.trailingStop) { closePosition(i, "Trailing Stop 📉"); continue; }
       }
     }
+  }
+
+  if(document.getElementById('liqPriceDisplay')) {
+    document.getElementById('liqPriceDisplay').textContent = lowestLiqPrice === Infinity ? "$0.00" : "$" + lowestLiqPrice.toFixed(2);
+  }
+}
+
+// 8. Jadvallarni ekranga chiqarish
+function renderPositions() {
+  const tbody = document.getElementById('positionsTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  positions.forEach((pos, index) => {
+    let cur = prices[pos.pair];
+    let pnl = calculatePNL(pos);
+    let tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>#${pos.id}</td>
+      <td><b>${pos.pair}</b></td>
+      <td><span class="badge ${pos.type === 'BUY' ? 'badge-success' : 'badge-danger'}">${pos.type}</span></td>
+      <td>x${pos.leverage}</td>
+      <td>$${pos.amount.toFixed(2)}</td>
+      <td>$${pos.entryPrice.toFixed(2)}</td>
+      <td>$${cur.toFixed(2)}</td>
+      <td>${pos.sl ? '$' + pos.sl.toFixed(2) : '-'}</td>
+      <td class="${pnl >= 0 ? 'pnl-plus' : 'pnl-minus'}">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</td>
+      <td><button class="btn-close-pos" onclick="closePosition(${index})">Yopish</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderHistory() {
+  const tbody = document.getElementById('historyTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  tradeHistory.slice().reverse().forEach(h => {
+    let tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>#${h.id}</td>
+      <td><b>${h.pair}</b></td>
+      <td><span class="badge ${h.type === 'BUY' ? 'badge-success' : 'badge-danger'}">${h.type}</span></td>
+      <td>$${h.amount.toFixed(2)}</td>
+      <td class="${h.pnl >= 0 ? 'pnl-plus' : 'pnl-minus'}">${h.pnl >= 0 ? '+' : ''}$${h.pnl.toFixed(2)} (${h.reason})</td>
+      <td>$${h.closePrice.toFixed(2)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderOrderBook() {
+  let cur = prices[selectedPair];
+  if(document.getElementById('orderBookSell')) {
+    document.getElementById('orderBookSell').innerHTML = `
+      <div>${(cur * 1.0004).toFixed(2)} - 1.10 ${selectedPair}</div>
+      <div>${(cur * 1.0002).toFixed(2)} - 0.75 ${selectedPair}</div>
+    `;
+  }
+  if(document.getElementById('orderBookBuy')) {
+    document.getElementById('orderBookBuy').innerHTML = `
+      <div>${(cur * 0.9998).toFixed(2)} - 2.45 ${selectedPair}</div>
+      <div>${(cur * 0.9996).toFixed(2)} - 1.20 ${selectedPair}</div>
+    `;
+  }
+}
+
+function renderLeaderboard() {
+  let users = JSON.parse(localStorage.getItem('users')) || {};
+  let sorted = Object.keys(users).map(u => ({ username: u, balance: users[u].balance || 10000 }))
+    .sort((a,b) => b.balance - a.balance);
+
+  const tbody = document.getElementById('leaderboardTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  sorted.forEach((item, idx) => {
+    let tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><b>#${idx + 1}</b></td>
+      <td>${item.username} ${item.username === currentUser ? '(Siz)' : ''}</td>
+      <td>${getTraderRank(item.balance)}</td>
+      <td style="color:#ffea00; font-weight:bold;">$${item.balance.toFixed(2)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderNews() {
+  const newsList = [
+    { title: "🚀 Bitcoin $70,000 marrasiga yaqinlashmoqda", desc: "Institutsional investorlar oqimi hisobiga narx keskin ko'tarildi." },
+    { title: "⚡ Ethereum 2.0 tarmoq yangilanishi e'lon qilindi", desc: "Tranzaksiya komissiyalari 40% ga arzonlashishi kutilmoqda." },
+    { title: "⚠️ FED foiz stavkalarini o'zgarishsiz qoldirdi", desc: "Bozorda mo''tadil tebranishlar kuzatilmoqda." }
+  ];
+  const container = document.getElementById('newsContainer');
+  if(!container) return;
+  container.innerHTML = "";
+  newsList.forEach(news => {
+    let div = document.createElement('div');
+    div.className = "news-card";
+    div.innerHTML = `<h4>${news.title}</h4><p>${news.desc}</p>`;
+    container.appendChild(div);
+  });
+}
 
-    function handleLogout() {
-      if(isBotActive) toggleAutoBot();
-      saveUserData();
-      currentUser = null;
-      localStorage.removeItem('lastLoggedInUser');
-      appBox.style.display = "none";
-      lampStage.style.display = "flex";
-      authBox.style.display = "block";
-      body.classList.remove('lamp-on');
-    }
-
-    function setTimeframe(tf, btn) {
-      tfMultiplier = tf;
-      document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      generateCandles();
-    }
-
-    function applyPromo() {
-      const code = document.getElementById('promoInput').value.trim().toUpperCase();
-      if (usedPromos.includes(code)) return showToast("Promokod ishlatilgan!", "error");
-      if (code === "BONUS100") { usdBalance += 1000; usedPromos.push(code); showToast("+$1,000 Qo'shildi!", "success"); playBeep(700, 'sine', 0.2); }
-      else if (code === "PROVIP") { usdBalance *= 1.5; usedPromos.push(code); showToast("Depozit +50% ga oshdi!", "success"); playBeep(900, 'sine', 0.3); }
-      else return showToast("Xato promokod!", "error");
-      
-      document.getElementById('promoInput').value = ""; 
-      saveUserData();
-      updateUI();
-    }
-
-    function claimDailyBonus() {
-      let win = Math.floor(100 + Math.random() * 400);
-      usdBalance += win; 
-      showToast(`🎉 Tabriklaymiz! Omadingiz kelib $${win} yutib oldingiz!`, 'success'); 
-      playBeep(1000, 'triangle', 0.4);
-      saveUserData();
-      updateUI();
-    }
-
-    function setPriceAlert() {
-      let val = parseFloat(document.getElementById('alertPriceInput').value);
-      if (!val) return showToast("Narxni kiriting!", 'error');
-      activeAlerts.push({ pair: selectedPair, price: val });
-      showToast(`🔔 ${selectedPair} $${val} ga yetganda xabar beriladi!`, 'info');
-      document.getElementById('alertPriceInput').value = "";
-    }
-
-    /* COPY TRADING SIMULATOR */
-    function startCopyTrade(traderName, winRate) {
-      let winProb = winRate / 100;
-      let amount = 500;
-      if (usdBalance < amount) return showToast("Balansda kamida $500 bo'lishi kerak!", "error");
-
-      usdBalance -= amount;
-      let isWin = Math.random() < winProb;
-      let profit = isWin ? (amount * (0.2 + Math.random() * 0.5)) : (-amount * 0.3);
-
-      setTimeout(() => {
-        usdBalance += (amount + profit);
-        if (profit >= 0) {
-          showToast(`👥 Copy-Trade (${traderName}): +$${profit.toFixed(2)} foyda!`, 'success');
-          playBeep(880, 'sine', 0.3);
-        } else {
-          showToast(`👥 Copy-Trade (${traderName}): -$${Math.abs(profit).toFixed(2)} zarar!`, 'error');
-          playBeep(250, 'sawtooth', 0.3);
-        }
-        saveUserData();
-        updateUI();
-      }, 2000);
-
-      showToast(`👥 ${traderName} bitimiga $500 nusxalanmoqda...`, 'info');
-    }
-
-    /* AUTO-BOT ENGINE SIMULATOR */
-    function toggleAutoBot() {
-      const btn = document.getElementById('botToggleBtn');
-      const badge = document.getElementById('botStatusBadge');
-      
-      if (!isBotActive) {
-        let cap = parseFloat(document.getElementById('botCapitalInput').value);
-        if (!cap || cap <= 0 || cap > usdBalance) return showToast("Bot uchun yetarli kapital kiriting!", "error");
-        
-        botCapital = cap;
-        usdBalance -= botCapital;
-        isBotActive = true;
-        btn.textContent = "Botni To'xtatish";
-        btn.style.background = "#ff3333";
-        btn.style.color = "#fff";
-        badge.textContent = "YONIK (ISHLAMOQDA)";
-        badge.className = "badge badge-success";
-        
-        showToast("🤖 Auto-Bot savdoni boshladi!", "success");
-
-        botTimer = setInterval(() => {
-          let strategy = document.getElementById('botRiskStrategy').value;
-          let multiplier = strategy === 'HIGH' ? 0.03 : (strategy === 'MEDIUM' ? 0.015 : 0.005);
-          
-          let tradeProfit = (Math.random() - 0.45) * (botCapital * multiplier);
-          botPnl += tradeProfit;
-          botTrades++;
-          
-          document.getElementById('botPnlDisplay').textContent = (botPnl >= 0 ? "+$" : "-$") + Math.abs(botPnl).toFixed(2);
-          document.getElementById('botPnlDisplay').style.color = botPnl >= 0 ? "#089981" : "#f23645";
-          document.getElementById('botTradesCount').textContent = botTrades + " ta";
-          
-          saveUserData();
-          updateUI();
-        }, 3000);
-
-      } else {
-        clearInterval(botTimer);
-        usdBalance += (botCapital + botPnl);
-        isBotActive = false;
-        btn.textContent = "Botni Yoqish";
-        btn.style.background = "#00e5ff";
-        btn.style.color = "#000";
-        badge.textContent = "O'CHIRILGAN";
-        badge.className = "badge badge-danger";
-        
-        showToast("🤖 Bot to'xtatildi, mablag' balansingizga qaytarildi!", "info");
-        saveUserData();
-        updateUI();
-      }
-    }
-
-    function calculateRisk() {
-      let riskPct = parseFloat(document.getElementById('calcRiskPct').value) / 100;
-      let entry = parseFloat(document.getElementById('calcEntryPrice').value);
-      let sl = parseFloat(document.getElementById('calcSLPrice').value);
-
-      if (!entry || !sl || entry === sl) return showToast("To'g'ri narxlarni kiriting!", 'error');
-
-      let maxLossAllowed = usdBalance * riskPct;
-      let priceDiffPct = Math.abs(entry - sl) / entry;
-      let recommendedPositionSize = maxLossAllowed / priceDiffPct;
-
-      document.getElementById('calcResult').textContent = `Tavsiya etiladigan maksimal pozitsiya hajmi: $${recommendedPositionSize.toFixed(2)} (Maks. xataringiz: $${maxLossAllowed.toFixed(2)})`;
-    }
-
-    function changeCryptoPair() {
-      selectedPair = document.getElementById('cryptoPairSelect').value;
-      document.getElementById('pairTitleDisplay').textContent = `Joriy ${selectedPair} Narxi`;
-      generateCandles();
-    }
-
-    function updateUI() {
-      document.getElementById('usdBalance').textContent = "$" + usdBalance.toFixed(2);
-      document.getElementById('activePosCount').textContent = positions.length + " ta";
-      document.getElementById('traderRankDisplay').textContent = getTraderRank();
-      
-      let overallPnl = positions.reduce((acc, pos) => acc + calculatePNL(pos), 0);
-      let pnlElem = document.getElementById('totalPnlDisplay');
-      pnlElem.textContent = (overallPnl >= 0 ? "+$" : "-$") + Math.abs(overallPnl).toFixed(2);
-      pnlElem.style.color = overallPnl >= 0 ? "#089981" : "#f23645";
-
-      renderPositions(); renderHistory(); renderAnalytics(); renderOrderBook(); renderLeaderboard();
-    }
-
-    function switchPage(pageId, element) {
-      document.querySelectorAll('.content-page').forEach(page => page.classList.remove('active'));
-      document.querySelectorAll('.menu-item').forEach(item => item.classList.remove('active'));
-      document.getElementById(pageId).classList.add('active'); element.classList.add('active');
-    }
-
-    /* CHART ENGINE (CANDLESTICKS + BOLLINGER + MACD + RSI) */
-    function initChartEngine() {
-      const canvas = document.getElementById('tradingChart'); const ctx = canvas.getContext('2d');
-      canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight;
-
-      const macdCanvas = document.getElementById('macdChart'); const macdCtx = macdCanvas.getContext('2d');
-      macdCanvas.width = macdCanvas.offsetWidth; macdCanvas.height = macdCanvas.offsetHeight;
-
-      const rsiCanvas = document.getElementById('rsiChart'); const rsiCtx = rsiCanvas.getContext('2d');
-      rsiCanvas.width = rsiCanvas.offsetWidth; rsiCanvas.height = rsiCanvas.offsetHeight;
-
-      let tickCounter = 0;
-
-      setInterval(() => {
-        let curPrice = prices[selectedPair];
-        let change = (Math.random() - 0.48) * (curPrice * 0.001 * tfMultiplier);
-        prices[selectedPair] += change;
-
-        let lastCandle = candles[candles.length - 1];
-        lastCandle.close = prices[selectedPair];
-        if (prices[selectedPair] > lastCandle.high) lastCandle.high = prices[selectedPair];
-        if (prices[selectedPair] < lastCandle.low) lastCandle.low = prices[selectedPair];
-
-        tickCounter++;
-        if (tickCounter >= 5) {
-          tickCounter = 0;
-          candles.push({ open: prices[selectedPair], high: prices[selectedPair], low: prices[selectedPair], close: prices[selectedPair] });
-          macdHist.push((Math.random() - 0.5) * 10);
-          if (candles.length > 30) { candles.shift(); macdHist.shift(); }
-        }
-
-        document.getElementById('livePrice').textContent = "$" + prices[selectedPair].toFixed(2);
-        document.getElementById('currentPriceDisplay').textContent = "$" + prices[selectedPair].toFixed(2);
-
-        checkAlerts();
-        checkAutoCloseAndLiquidation();
-        updateUI();
-        drawCandlesticksAndBollinger(ctx, canvas);
-        drawMACD(macdCtx, macdCanvas);
-        drawRSI(rsiCtx, rsiCanvas);
-      }, 500);
-    }
-
-    function checkAlerts() {
-      activeAlerts.forEach((alertObj, index) => {
-        let cur = prices[alertObj.pair];
-        if (Math.abs(cur - alertObj.price) <= (cur * 0.001)) {
-          showToast(`🚨 ALERT: ${alertObj.pair} narxi $${alertObj.price.toFixed(2)} ga yetdi!`, 'info');
-          playBeep(1200, 'sine', 0.5);
-          activeAlerts.splice(index, 1);
-        }
-      });
-    }
-
-    /* BOLLINGER BANDS INCLUDED */
-    function drawCandlesticksAndBollinger(ctx, canvas) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      let allHighs = candles.map(c => c.high);
-      let allLows = candles.map(c => c.low);
-      let minPrice = Math.min(...allLows); let maxPrice = Math.max(...allHighs);
-      let range = (maxPrice - minPrice) || 1;
-      let candleWidth = (canvas.width / candles.length) - 5;
-
-      let smaPoints = [];
-
-      candles.forEach((c, i) => {
-        let x = i * (candleWidth + 5) + 4;
-        let openY = canvas.height - ((c.open - minPrice) / range) * (canvas.height - 30) - 15;
-        let closeY = canvas.height - ((c.close - minPrice) / range) * (canvas.height - 30) - 15;
-        let highY = canvas.height - ((c.high - minPrice) / range) * (canvas.height - 30) - 15;
-        let lowY = canvas.height - ((c.low - minPrice) / range) * (canvas.height - 30) - 15;
-
-        let color = c.close >= c.open ? "#089981" : "#f23645";
-        ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 1.2;
-        ctx.moveTo(x + candleWidth / 2, highY); ctx.lineTo(x + candleWidth / 2, lowY); ctx.stroke();
-
-        ctx.fillStyle = color;
-        ctx.fillRect(x, Math.min(openY, closeY), candleWidth, Math.abs(closeY - openY) || 2);
-
-        let avg = (c.open + c.close + c.high + c.low) / 4;
-        let avgY = canvas.height - ((avg - minPrice) / range) * (canvas.height - 30) - 15;
-        smaPoints.push({ x: x + candleWidth / 2, y: avgY });
-      });
-
-      // Bollinger Bands (Upper & Lower)
-      ctx.beginPath(); ctx.strokeStyle = "rgba(0, 229, 255, 0.4)"; ctx.lineWidth = 1;
-      smaPoints.forEach((p, i) => { if (i === 0) ctx.moveTo(p.x, p.y - 12); else ctx.lineTo(p.x, p.y - 12); });
-      smaPoints.forEach((p, i) => { ctx.lineTo(p.x, p.y + 12); });
-      ctx.stroke();
-
-      // SMA Line
-      ctx.beginPath(); ctx.strokeStyle = "#ffea00"; ctx.lineWidth = 1.5;
-      smaPoints.forEach((p, i) => { if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
-      ctx.stroke();
-    }
-
-    function drawMACD(ctx, canvas) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "#aaa"; ctx.font = "9px sans-serif"; ctx.fillText("MACD Histogram", 5, 10);
-      let step = canvas.width / macdHist.length;
-      macdHist.forEach((val, i) => {
-        let x = i * step;
-        let h = Math.abs(val) * 2;
-        ctx.fillStyle = val >= 0 ? "#089981" : "#f23645";
-        ctx.fillRect(x, canvas.height / 2 - (val >= 0 ? h : 0), step - 2, h || 2);
-      });
-    }
-
-    function drawRSI(ctx, canvas) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "#aaa"; ctx.font = "9px sans-serif"; ctx.fillText("RSI (14)", 5, 10);
-
-      ctx.strokeStyle = "rgba(255,255,255,0.15)";
-      ctx.beginPath();
-      ctx.moveTo(0, canvas.height * 0.3); ctx.lineTo(canvas.width, canvas.height * 0.3);
-      ctx.moveTo(0, canvas.height * 0.7); ctx.lineTo(canvas.width, canvas.height * 0.7);
-      ctx.stroke();
-
-      ctx.beginPath(); ctx.strokeStyle = "#00e5ff"; ctx.lineWidth = 1.5;
-      let step = canvas.width / candles.length;
-      candles.forEach((c, i) => {
-        let dummyRsi = 30 + Math.abs(Math.sin(i + Date.now()/1000)) * 40;
-        let y = canvas.height - (dummyRsi / 100) * canvas.height;
-        if (i === 0) ctx.moveTo(i * step, y);
-        else ctx.lineTo(i * step, y);
-      });
-      ctx.stroke();
-    }
-
-    function renderOrderBook() {
-      let cur = prices[selectedPair];
-      document.getElementById('orderBookSell').innerHTML = `
-        <div>${(cur * 1.0004).toFixed(2)} - 1.10 ${selectedPair}</div>
-        <div>${(cur * 1.0002).toFixed(2)} - 0.75 ${selectedPair}</div>
-      `;
-      document.getElementById('orderBookBuy').innerHTML = `
-        <div>${(cur * 0.9998).toFixed(2)} - 2.45 ${selectedPair}</div>
-        <div>${(cur * 0.9996).toFixed(2)} - 1.20 ${selectedPair}</div>
-      `;
-    }
-
-    /* POSITIONS & LIQUIDATION ENGINE */
-    function openPosition(type) {
-      let amountInput = type === 'BUY' ? document.getElementById('buyAmount') : document.getElementById('sellAmount');
-      let leverageInput = type === 'BUY' ? document.getElementById('buyLeverage') : document.getElementById('sellLeverage');
-      let tpInput = type === 'BUY' ? document.getElementById('buyTP') : document.getElementById('sellTP');
-      let slInput = type === 'BUY' ? document.getElementById('buySL') : document.getElementById('sellSL');
-      let tsInput = type === 'BUY' ? document.getElementById('buyTS') : document.getElementById('sellTS');
-
-      let amount = parseFloat(amountInput.value);
-      let leverage = parseInt(leverageInput.value);
-      let tp = parseFloat(tpInput.value) || null;
-      let sl = parseFloat(slInput.value) || null;
-      let ts = parseFloat(tsInput.value) || null;
-
-      if (!amount || amount <= 0 || usdBalance < amount) return showToast("Balansda mablag' yetarli emas!", "error");
-
-      usdBalance -= amount;
-
-      positions.push({
-        id: Math.floor(1000 + Math.random() * 9000),
-        pair: selectedPair,
-        type: type,
-        amount: amount,
-        leverage: leverage,
-        entryPrice: prices[selectedPair],
-        highestPrice: prices[selectedPair],
-        lowestPrice: prices[selectedPair],
-        tp: tp,
-        sl: sl,
-        trailingStop: ts
-      });
-
-      playBeep(600, 'triangle', 0.2);
-      showToast(`${type} pozitsiyasi ochildi (#${positions[positions.length - 1].id})`, 'success');
-      amountInput.value = "";
-      
-      saveUserData();
-      updateUI();
-    }
-
-    function calculatePNL(pos) {
-      let cur = prices[pos.pair];
-      let diff = pos.type === 'BUY' ? (cur - pos.entryPrice) : (pos.entryPrice - cur);
-      return (diff / pos.entryPrice) * pos.amount * pos.leverage;
-    }
-
-    function closePosition(index, reason = "Qo'lda yopildi") {
-      let pos = positions[index];
-      let pnl = calculatePNL(pos);
-      usdBalance += pos.amount + pnl;
-
-      tradeHistory.push({
-        id: pos.id,
-        pair: pos.pair,
-        type: pos.type,
-        amount: pos.amount,
-        pnl: pnl,
-        closePrice: prices[pos.pair],
-        reason: reason
-      });
-
-      positions.splice(index, 1);
-      if(pnl >= 0) { playBeep(900, 'sine', 0.3); showToast(`Pozitsiya yopildi: +$${pnl.toFixed(2)}`, 'success'); }
-      else { playBeep(300, 'sawtooth', 0.3); showToast(`Pozitsiya yopildi: -$${Math.abs(pnl).toFixed(2)}`, 'error'); }
-
-      saveUserData();
-      updateUI();
-    }
-
-    function checkAutoCloseAndLiquidation() {
-      let lowestLiqPrice = Infinity;
-
-      for (let i = positions.length - 1; i >= 0; i--) {
-        let pos = positions[i];
-        let cur = prices[pos.pair];
-        let pnl = calculatePNL(pos);
-
-        if (pnl <= -pos.amount * 0.9) {
-          closePosition(i, "LIKVIDATSIYA ⚠️");
-          continue;
-        }
-
-        let liqPrice = pos.type === 'BUY' 
-          ? pos.entryPrice * (1 - 0.9 / pos.leverage)
-          : pos.entryPrice * (1 + 0.9 / pos.leverage);
-        if (liqPrice < lowestLiqPrice) lowestLiqPrice = liqPrice;
-
-        if (pos.tp) {
-          if (pos.type === 'BUY' && cur >= pos.tp) { closePosition(i, "Take Profit 🎯"); continue; }
-          if (pos.type === 'SELL' && cur <= pos.tp) { closePosition(i, "Take Profit 🎯"); continue; }
-        }
-        if (pos.sl) {
-          if (pos.type === 'BUY' && cur <= pos.sl) { closePosition(i, "Stop Loss 🛑"); continue; }
-          if (pos.type === 'SELL' && cur >= pos.sl) { closePosition(i, "Stop Loss 🛑"); continue; }
-        }
-
-        if (pos.trailingStop) {
-          if (pos.type === 'BUY') {
-            if (cur > pos.highestPrice) pos.highestPrice = cur;
-            if (cur <= pos.highestPrice - pos.trailingStop) { closePosition(i, "Trailing Stop 📈"); continue; }
-          } else {
-            if (cur < pos.lowestPrice) pos.lowestPrice = cur;
-            if (cur >= pos.lowestPrice + pos.trailingStop) { closePosition(i, "Trailing Stop 📉"); continue; }
-          }
-        }
-      }
-
-      document.getElementById('liqPriceDisplay').textContent = lowestLiqPrice === Infinity ? "$0.00" : "$" + lowestLiqPrice.toFixed(2);
-    }
-
-    function renderPositions() {
-      const tbody = document.getElementById('positionsTableBody');
-      tbody.innerHTML = "";
-      positions.forEach((pos, index) => {
-        let cur = prices[pos.pair];
-        let pnl = calculatePNL(pos);
-        let tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>#${pos.id}</td>
-          <td><b>${pos.pair}</b></td>
-          <td><span class="badge ${pos.type === 'BUY' ? 'badge-success' : 'badge-danger'}">${pos.type}</span></td>
-          <td>x${pos.leverage}</td>
-          <td>$${pos.amount.toFixed(2)}</td>
-          <td>$${pos.entryPrice.toFixed(2)}</td>
-          <td>$${cur.toFixed(2)}</td>
-          <td>${pos.sl ? '$' + pos.sl.toFixed(2) : '-'}</td>
-          <td class="${pnl >= 0 ? 'pnl-plus' : 'pnl-minus'}">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</td>
-          <td><button class="btn-close-pos" onclick="closePosition(${index})">Yopish</button></td>
-        `;
-        tbody.appendChild(tr);
-      });
-    }
-
-    function renderHistory() {
-      const tbody = document.getElementById('historyTableBody');
-      tbody.innerHTML = "";
-      tradeHistory.slice().reverse().forEach(h => {
-        let tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>#${h.id}</td>
-          <td><b>${h.pair}</b></td>
-          <td><span class="badge ${h.type === 'BUY' ? 'badge-success' : 'badge-danger'}">${h.type}</span></td>
-          <td>$${h.amount.toFixed(2)}</td>
-          <td class="${h.pnl >= 0 ? 'pnl-plus' : 'pnl-minus'}">${h.pnl >= 0 ? '+' : ''}$${h.pnl.toFixed(2)} (${h.reason})</td>
-          <td>$${h.closePrice.toFixed(2)}</td>
-        `;
-        tbody.appendChild(tr);
-      });
-    }
-
-    function renderLeaderboard() {
-      let users = JSON.parse(localStorage.getItem('users')) || {};
-      let sorted = Object.keys(users).map(u => ({ username: u, balance: users[u].balance || 10000 }))
-        .sort((a,b) => b.balance - a.balance);
-
-      const tbody = document.getElementById('leaderboardTableBody');
-      tbody.innerHTML = "";
-      sorted.forEach((item, idx) => {
-        let tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td><b>#${idx + 1}</b></td>
-          <td>${item.username} ${item.username === currentUser ? '(Siz)' : ''}</td>
-          <td>${getTraderRank(item.balance)}</td>
-          <td style="color:#ffea00; font-weight:bold;">$${item.balance.toFixed(2)}</td>
-        `;
-        tbody.appendChild(tr);
-      });
-    }
-
-    function renderNews() {
-      const newsList = [
-        { title: "🚀 Bitcoin $70,000 marrasiga yaqinlashmoqda", desc: "Institutsional investorlar oqimi hisobiga narx keskin ko'tarildi." },
-        { title: "⚡ Ethereum 2.0 tarmoq yangilanishi e'lon qilindi", desc: "Tranzaksiya komissiyalari 40% ga arzonlashishi kutilmoqda." },
-        { title: "⚠️ FED foiz stavkalarini o'zgarishsiz qoldirdi", desc: "Bozorda mo''tadil tebranishlar kuzatilmoqda." }
-      ];
-      const container = document.getElementById('newsContainer');
-      container.innerHTML = "";
-      newsList.forEach(news => {
-        let div = document.createElement('div');
-        div.className = 'news-card';
-        div.innerHTML = `<h3 style="color:#ffea00; font-size:14px;">${news.title}</h3><p style="font-size:12px; color:#aaa; margin-top:4px;">${news.desc}</p>`;
-        container.appendChild(div);
-      });
-    }
-
-    function renderAnalytics() {
-      let total = tradeHistory.length;
-      let wins = tradeHistory.filter(h => h.pnl > 0).length;
-      let losses = tradeHistory.filter(h => h.pnl < 0).length;
-      let winRate = total > 0 ? ((wins / total) * 100).toFixed(1) : 0;
-
-      document.getElementById('statTotalTrades').textContent = total;
-      document.getElementById('statWinTrades').textContent = wins;
-      document.getElementById('statLossTrades').textContent = losses;
-      document.getElementById('statWinRate').textContent = winRate + "%";
-    }
-
-    window.addEventListener('DOMContentLoaded', () => {
-      let lastUser = localStorage.getItem('lastLoggedInUser');
-      if (lastUser) {
-        loadUserData(lastUser);
-        authBox.style.display = "none"; lampStage.style.display = "none"; appBox.style.display = "grid";
-        updateUI(); initChartEngine(); renderNews();
-      }
-    });
+function renderAnalytics() {}
   </script>
 </body>
 </html>
