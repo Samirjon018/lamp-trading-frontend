@@ -1,0 +1,1234 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LampApp Ultimate Trading Engine & Copy-Trading</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: #0b0b0b; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; transition: background 0.4s ease; }
+
+    /* LAMPA STYLES */
+    .lamp-stage { position: absolute; left: 6%; width: 250px; height: 400px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; cursor: pointer; }
+    .lamp-shade { width: 160px; height: 100px; background: #222; clip-path: polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%); position: relative; z-index: 3; transition: background 0.3s, box-shadow 0.3s; }
+    .lamp-light { position: absolute; top: 100px; width: 220px; height: 300px; background: linear-gradient(to bottom, rgba(255, 234, 0, 0.25), transparent); clip-path: polygon(30% 0%, 70% 0%, 100% 100%, 0% 100%); opacity: 0; transition: opacity 0.4s; pointer-events: none; z-index: 1; }
+    .pull-string { position: absolute; top: 90px; left: 65%; width: 5px; height: 85px; background: #fff; z-index: 5; box-shadow: 0 0 3px rgba(255, 255, 255, 0.9); }
+    .pull-handle { position: absolute; bottom: -14px; left: -5px; width: 14px; height: 14px; background: #ff3333; border-radius: 50%; box-shadow: 0 0 6px rgba(255, 51, 51, 0.8); }
+    .lamp-stand { width: 12px; height: 180px; background: #333; z-index: 2; }
+    .lamp-base { width: 120px; height: 18px; background: #252525; border-radius: 10px 10px 0 0; z-index: 2; }
+
+    /* AUTH STYLES */
+    .auth-container { position: absolute; right: 12%; width: 360px; padding: 35px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(8px); border-radius: 12px; color: #fff; opacity: 0.1; transform: translateY(20px); transition: opacity 0.5s, transform 0.5s; pointer-events: none; }
+    .auth-container h2 { margin-bottom: 20px; text-align: center; }
+    .input-field { margin-bottom: 12px; }
+    .input-field input, .input-field select { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #444; background: rgba(0,0,0,0.5); color: #fff; outline: none; }
+    .input-field input:focus, .input-field select:focus { border-color: #ffea00; }
+    .action-btn { width: 100%; padding: 10px; background: #ffea00; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; color: #000; transition: background 0.3s; }
+    .action-btn:hover { background: #ffd700; }
+    .toggle-text { margin-top: 15px; text-align: center; font-size: 13px; color: #aaa; }
+    .toggle-text span { color: #ffea00; cursor: pointer; text-decoration: underline; }
+    .message { margin-top: 12px; text-align: center; font-size: 13px; }
+
+    /* PORTAL STYLES */
+    .app-container { display: none; width: 98%; height: 96vh; background: rgba(18, 18, 18, 0.95); border: 1px solid rgba(255, 234, 0, 0.2); backdrop-filter: blur(15px); border-radius: 16px; color: #fff; box-shadow: 0 0 50px rgba(0,0,0,0.9); overflow: hidden; grid-template-columns: 220px 1fr; animation: fadeIn 0.5s ease forwards; }
+    .sidebar { background: rgba(10, 10, 10, 0.8); border-right: 1px solid rgba(255,255,255,0.08); padding: 25px 15px; display: flex; flex-direction: column; justify-content: space-between; }
+    .brand { font-size: 18px; font-weight: bold; color: #ffea00; margin-bottom: 30px; text-align: center; }
+    .menu-list { list-style: none; }
+    .menu-item { padding: 12px 15px; margin-bottom: 8px; border-radius: 8px; cursor: pointer; color: #ccc; transition: all 0.3s; display: flex; align-items: center; gap: 10px; font-size: 13px; }
+    .menu-item:hover, .menu-item.active { background: rgba(255, 234, 0, 0.15); color: #ffea00; font-weight: bold; }
+    
+    .user-info { font-size: 12px; color: #aaa; margin-bottom: 10px; text-align: center; }
+    .logout-btn { padding: 10px; background: #ff3333; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; margin-bottom: 5px; }
+    .reset-btn { padding: 8px; background: #444; color: #ffea00; border: 1px solid #ffea00; border-radius: 6px; cursor: pointer; font-size: 11px; width: 100%; }
+
+    .main-content { padding: 15px; overflow-y: auto; }
+    .content-page { display: none; }
+    .content-page.active { display: block; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; }
+
+    .metrics-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 10px; }
+    .metric-card { background: rgba(255,255,255,0.03); padding: 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.05); }
+    .metric-card h4 { color: #aaa; font-size: 11px; margin-bottom: 4px; }
+    .metric-card p { font-size: 16px; font-weight: bold; color: #ffea00; }
+
+    .top-tools-bar { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+    .tool-box { background: rgba(255, 234, 0, 0.05); border: 1px dashed rgba(255, 234, 0, 0.3); border-radius: 10px; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; }
+
+    .chart-controls { display: flex; gap: 10px; align-items: center; background: #131722; padding: 6px 12px; border-radius: 8px 8px 0 0; border-bottom: 1px solid #222; }
+    .tf-btn { background: #222; color: #aaa; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+    .tf-btn.active { background: #ffea00; color: #000; font-weight: bold; }
+
+    .trading-grid { display: grid; grid-template-columns: 3fr 1fr; gap: 10px; margin-bottom: 10px; }
+    .chart-box { background: #0d0d11; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; overflow: hidden; }
+    
+    canvas#tradingChart { width: 100%; height: 180px; background: #131722; }
+    canvas#macdChart { width: 100%; height: 45px; background: #090b10; border-top: 1px solid #222; }
+    canvas#rsiChart { width: 100%; height: 45px; background: #0b0d13; border-top: 1px solid #222; }
+
+    .order-book { background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 10px; font-size: 11px; display: flex; flex-direction: column; justify-content: space-between; }
+    .trade-actions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+    .trade-form { background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); padding: 10px; border-radius: 8px; }
+    .tp-sl-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+    .btn-buy { background: #089981; color: #fff; width: 100%; padding: 8px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+    .btn-sell { background: #f23645; color: #fff; width: 100%; padding: 8px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+
+    .positions-box { background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; padding: 12px; margin-bottom: 15px; }
+    .custom-table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+    .custom-table th, .custom-table td { padding: 8px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.08); font-size: 12px; }
+    .custom-table th { color: #ffea00; }
+    
+    .btn-close-pos { background: #ff9900; color: #000; border: none; padding: 4px 8px; border-radius: 4px; font-weight: bold; cursor: pointer; }
+    .pnl-plus { color: #089981; font-weight: bold; }
+    .pnl-minus { color: #f23645; font-weight: bold; }
+    .badge { padding: 3px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
+    .badge-success { background: rgba(8, 153, 129, 0.2); color: #089981; }
+    .badge-danger { background: rgba(242, 54, 69, 0.2); color: #f23645; }
+
+    body.lamp-on { background-color: #141414; }
+    body.lamp-on .lamp-shade { background: #ffea00; box-shadow: 0 0 30px #ffea00; }
+    body.lamp-on .lamp-light { opacity: 1; }
+    body.lamp-on .auth-container { opacity: 1; transform: translateY(0); pointer-events: all; }
+
+    /* TOAST NOTIFICATIONS & BOT CARD STYLES */
+    #toastContainer { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+    .toast { background: #1f2330; color: #fff; padding: 10px 16px; border-radius: 6px; border-left: 4px solid #ffea00; font-size: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); animation: slideIn 0.3s ease; }
+    
+    .bot-card, .news-card, .trader-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 15px; margin-top: 15px; }
+
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes fadeIn { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: scale(1); } }
+  </style>
+</head>
+<body>
+
+  <!-- TOAST NOTIFICATION CONTAINER -->
+  <div id="toastContainer"></div>
+
+  <!-- LAMP STAGE -->
+  <div class="lamp-stage" id="lampStage" onclick="toggleLamp()">
+    <div class="lamp-shade"><div class="pull-string"><div class="pull-handle"></div></div></div>
+    <div class="lamp-light"></div>
+    <div class="lamp-stand"></div>
+    <div class="lamp-base"></div>
+  </div>
+
+  <!-- AUTH BOX -->
+  <div class="auth-container" id="authBox">
+    <div id="loginFormSection">
+      <h2>Tizimga Kirish</h2>
+      <form onsubmit="handleLogin(event)">
+        <div class="input-field"><input type="text" id="loginUsername" placeholder="Foydalanuvchi nomi" required></div>
+        <div class="input-field"><input type="password" id="loginPassword" placeholder="Parol" required></div>
+        <button type="submit" class="action-btn">Kirish</button>
+      </form>
+      <p class="toggle-text">Hisobingiz yo'qmi? <span id="toRegister">Ro'yxatdan o'ting</span></p>
+      <p class="message" id="loginMessage"></p>
+    </div>
+
+    <div id="registerFormSection" style="display: none;">
+      <h2>Ro'yxatdan O'tish</h2>
+      <form onsubmit="handleRegister(event)">
+        <div class="input-field"><input type="text" id="regUsername" placeholder="Yangi foydalanuvchi" required></div>
+        <div class="input-field"><input type="password" id="regPassword" placeholder="Yangi parol" required></div>
+        <button type="submit" class="action-btn">Saqlash</button>
+      </form>
+      <p class="toggle-text">Hisobingiz bormi? <span id="toLogin">Kirish</span></p>
+      <p class="message" id="regMessage"></p>
+    </div>
+  </div>
+
+  <!-- MAIN APP PORTAL -->
+  <div class="app-container" id="appBox">
+    <div class="sidebar">
+      <div>
+        <div class="brand">⚡ LampApp Ultimate</div>
+        <ul class="menu-list">
+          <li class="menu-item active" onclick="switchPage('trading', this)">📈 Trading Terminal</li>
+          <li class="menu-item" onclick="switchPage('botPage', this)">🤖 Auto-Bot Trading</li>
+          <li class="menu-item" onclick="switchPage('copyTradingPage', this)">👥 Copy-Trading</li>
+          <li class="menu-item" onclick="switchPage('leaderboardPage', this)">🏆 Leaderboard</li>
+          <li class="menu-item" onclick="switchPage('newsPage', this)">📰 Market News</li>
+          <li class="menu-item" onclick="switchPage('analytics', this)">📊 Tahlil & Win-Rate</li>
+          <li class="menu-item" onclick="switchPage('history', this)">📜 Savdo Tarixi</li>
+        </ul>
+      </div>
+      <div>
+        <div class="user-info">Akkount: <b id="displayUsername" style="color:#ffea00;">-</b></div>
+        <button class="logout-btn" onclick="handleLogout()">Chiqish</button>
+        <button class="reset-btn" onclick="resetUserBalance()">♻️ Balansni $10,000 qilish</button>
+      </div>
+    </div>
+
+    <div class="main-content">
+      <!-- TRADING PAGE -->
+      <div class="content-page active" id="trading">
+        <div class="page-header">
+          <h3 style="font-size: 18px;">Bollinger + MACD + RSI Multi-Indicator Exchange</h3>
+          <span class="badge badge-success">● Live Engine v7.0 (Ultimate)</span>
+        </div>
+
+        <div class="top-tools-bar">
+          <div class="tool-box">
+            <div><h5 style="color: #ffea00;">🎟️ Promokod</h5><p style="font-size: 10px; color: #aaa;">BONUS100 / PROVIP</p></div>
+            <div style="display:flex; gap:4px;">
+              <input type="text" id="promoInput" style="padding: 4px; background:#000; border: 1px solid #ffea00; color:#fff; border-radius: 4px; width: 80px; font-size:10px;" placeholder="Kod...">
+              <button class="action-btn" style="padding: 4px 6px; font-size:10px;" onclick="applyPromo()">Kiritish</button>
+            </div>
+          </div>
+          <div class="tool-box">
+            <div><h5 style="color: #00ff66;">🎁 Kunlik Bonus</h5><p style="font-size: 10px; color: #aaa;">Omad g'ildiragi</p></div>
+            <button class="action-btn" style="padding: 4px 8px; background: #00ff66; font-size:10px;" onclick="claimDailyBonus()">🎁 Olish</button>
+          </div>
+          <div class="tool-box">
+            <div><h5 style="color: #00e5ff;">🔔 Price Alert</h5><p style="font-size: 10px; color: #aaa;">Narx bildirishnomasi</p></div>
+            <div style="display:flex; gap:4px;">
+              <input type="number" id="alertPriceInput" style="padding: 4px; background:#000; border: 1px solid #00e5ff; color:#fff; border-radius: 4px; width: 80px; font-size:10px;" placeholder="Narx...">
+              <button class="action-btn" style="padding: 4px 6px; background:#00e5ff; font-size:10px;" onclick="setPriceAlert()">O'rnatish</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="metrics-grid">
+          <div class="metric-card"><h4>Depozit Balans</h4><p id="usdBalance">$10,000.00</p></div>
+          <div class="metric-card"><h4 id="pairTitleDisplay">Joriy BTC Narxi</h4><p id="currentPriceDisplay">$65,000</p></div>
+          <div class="metric-card"><h4>Trader Maqomi</h4><p id="traderRankDisplay" style="color:#00e5ff;">Bronze 🥉</p></div>
+          <div class="metric-card"><h4>Ochiq Pozitsiyalar</h4><p id="activePosCount">0 ta</p></div>
+          <div class="metric-card"><h4>Jami P&L</h4><p id="totalPnlDisplay">$0.00</p></div>
+          <div class="metric-card"><h4>Likvidatsiya</h4><p style="color:#f23645;" id="liqPriceDisplay">$0.00</p></div>
+        </div>
+
+        <div class="trading-grid">
+          <div class="chart-box">
+            <div class="chart-controls">
+              <select id="cryptoPairSelect" onchange="changeCryptoPair()" style="background:#000; color:#ffea00; border:1px solid #ffea00; padding:3px; border-radius:4px; font-weight:bold; font-size:11px;">
+                <option value="BTC">BTC / USDT</option>
+                <option value="ETH">ETH / USDT</option>
+                <option value="SOL">SOL / USDT</option>
+              </select>
+              <div style="display:flex; gap:3px;">
+                <button class="tf-btn active" onclick="setTimeframe(1, this)">1m</button>
+                <button class="tf-btn" onclick="setTimeframe(5, this)">5m</button>
+                <button class="tf-btn" onclick="setTimeframe(15, this)">15m</button>
+              </div>
+              <span id="livePrice" style="margin-left:auto; font-weight:bold; font-size:16px;">$65,000.00</span>
+            </div>
+            <canvas id="tradingChart"></canvas>
+            <canvas id="macdChart"></canvas>
+            <canvas id="rsiChart"></canvas>
+          </div>
+
+          <div class="order-book">
+            <div>
+              <h4 style="font-size: 11px; color: #aaa; margin-bottom: 6px;">Order Book & Depth</h4>
+              <div id="orderBookSell" style="color: #f23645; line-height: 1.4;"></div>
+              <div id="orderBookBuy" style="border-top: 1px solid #333; margin-top: 4px; padding-top: 4px; color: #089981; line-height: 1.4;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- BUY / SELL FORMS -->
+        <div class="trade-actions-grid">
+          <div class="trade-form">
+            <h4 style="color: #089981; margin-bottom: 6px; font-size:12px;">BUY (O'sish)</h4>
+            <div class="input-field"><input type="number" id="buyAmount" placeholder="Tikiladigan sum ($)"></div>
+            <div class="input-field">
+              <select id="buyLeverage">
+                <option value="1">Leveradj: x1</option><option value="10">Leveradj: x10</option>
+                <option value="50">Leveradj: x50</option><option value="100">Leveradj: x100 🔥</option>
+              </select>
+            </div>
+            <div class="tp-sl-inputs">
+              <div class="input-field"><input type="number" id="buyTP" placeholder="TP Narxi ($)"></div>
+              <div class="input-field"><input type="number" id="buySL" placeholder="SL Narxi ($)"></div>
+            </div>
+            <div class="input-field"><input type="number" id="buyTS" placeholder="Trailing Stop ($ masofa)"></div>
+            <button class="btn-buy" onclick="openPosition('BUY')">BUY Ochish</button>
+          </div>
+
+          <div class="trade-form">
+            <h4 style="color: #f23645; margin-bottom: 6px; font-size:12px;">SELL (Tushish)</h4>
+            <div class="input-field"><input type="number" id="sellAmount" placeholder="Tikiladigan sum ($)"></div>
+            <div class="input-field">
+              <select id="sellLeverage">
+                <option value="1">Leveradj: x1</option><option value="10">Leveradj: x10</option>
+                <option value="50">Leveradj: x50</option><option value="100">Leveradj: x100 🔥</option>
+              </select>
+            </div>
+            <div class="tp-sl-inputs">
+              <div class="input-field"><input type="number" id="sellTP" placeholder="TP Narxi ($)"></div>
+              <div class="input-field"><input type="number" id="sellSL" placeholder="SL Narxi ($)"></div>
+            </div>
+            <div class="input-field"><input type="number" id="sellTS" placeholder="Trailing Stop ($ masofa)"></div>
+            <button class="btn-sell" onclick="openPosition('SELL')">SELL Ochish</button>
+          </div>
+        </div>
+
+        <div class="positions-box">
+          <h4 style="font-size: 13px; color: #ffea00; margin-bottom: 6px;">📋 Ochiq Pozitsiyalar</h4>
+          <table class="custom-table">
+            <thead>
+              <tr><th>#ID</th><th>Juftlik</th><th>Turi</th><th>Leveradj</th><th>Pul</th><th>Kirish</th><th>Joriy Narx</th><th>Stop-Loss</th><th>P&L ($)</th><th>Boshqaruv</th></tr>
+            </thead>
+            <tbody id="positionsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- AUTO-BOT PAGE -->
+      <div class="content-page" id="botPage">
+        <h2>🤖 Grid / DCA Algo-Trading Bot Simulyatori</h2>
+        <p style="color:#aaa; font-size:12px; margin-top:4px;">Bot bozor tebranishlaridan foydalanib avtomatik ravishda scalping va grid savdolarni amalga oshiradi.</p>
+
+        <div class="bot-card">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h3>⚡ Grid Scalper Bot v1.0</h3>
+            <span id="botStatusBadge" class="badge badge-danger">O'CHIRILGAN</span>
+          </div>
+          <hr style="border-color:rgba(255,255,255,0.1); margin:10px 0;">
+          <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
+            <div class="input-field">
+              <label style="font-size:11px; color:#aaa;">Botga ajratilgan kapital ($):</label>
+              <input type="number" id="botCapitalInput" placeholder="Masalan: 1000">
+            </div>
+            <div class="input-field">
+              <label style="font-size:11px; color:#aaa;">Xatar Strategiyasi:</label>
+              <select id="botRiskStrategy">
+                <option value="LOW">Ehtiyotkor (Kam risk / Past daromad)</option>
+                <option value="MEDIUM" selected>O'rtacha (Scalping Grid)</option>
+                <option value="HIGH">Agressiv (High-Frequency)</option>
+              </select>
+            </div>
+            <div style="display:flex; align-items:flex-end; margin-bottom:12px;">
+              <button id="botToggleBtn" class="action-btn" style="background:#00e5ff; color:#000;" onclick="toggleAutoBot()">Botni Yoqish</button>
+            </div>
+          </div>
+          <div style="margin-top:10px; font-size:13px;">
+            <span>Bot Daromadi (P&L): <b id="botPnlDisplay" style="color:#089981;">+$0.00</b></span> | 
+            <span>Amalga oshirilgan bitimlar: <b id="botTradesCount">0 ta</b></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- COPY-TRADING PAGE -->
+      <div class="content-page" id="copyTradingPage">
+        <h2>👥 Smart Copy-Trading (Top Treyderlarni Kuzatish)</h2>
+        <p style="color:#aaa; font-size:12px; margin-top:4px;">Xalqaro tajribali treyderlar bitimlarini hisobingizga avtomatik ravishda nusxalang.</p>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-top:15px;">
+          <div class="trader-card">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <h3 style="color:#ffea00;">🐋 Satoshi_Whale</h3>
+                <p style="font-size:11px; color:#aaa;">Win-Rate: <b style="color:#089981;">89.4%</b> | Total Profit: <b>+$142,500</b></p>
+              </div>
+              <button class="action-btn" style="width:auto; padding:6px 15px;" onclick="startCopyTrade('Satoshi_Whale', 89.4)">Follow</button>
+            </div>
+          </div>
+
+          <div class="trader-card">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <h3 style="color:#00e5ff;">⚡ Scalp_Master_99</h3>
+                <p style="font-size:11px; color:#aaa;">Win-Rate: <b style="color:#089981;">78.2%</b> | Total Profit: <b>+$88,200</b></p>
+              </div>
+              <button class="action-btn" style="width:auto; padding:6px 15px;" onclick="startCopyTrade('Scalp_Master_99', 78.2)">Follow</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LEADERBOARD PAGE -->
+      <div class="content-page" id="leaderboardPage">
+        <h2>🏆 Top Treyderlar Peshqadamlik Jadvali</h2>
+        <table class="custom-table" style="margin-top: 15px;">
+          <thead>
+            <tr><th>O'rin</th><th>Foydalanuvchi</th><th>Maqom</th><th>Depozit Balansi</th></tr>
+          </thead>
+          <tbody id="leaderboardTableBody"></tbody>
+        </table>
+      </div>
+
+      <!-- MARKET NEWS PAGE -->
+      <div class="content-page" id="newsPage">
+        <h2>📰 Tizim va Bozor Yangiliklari Lenti</h2>
+        <div id="newsContainer"></div>
+      </div>
+
+      <!-- ANALYTICS PAGE -->
+      <div class="content-page" id="analytics">
+        <h2>📊 Savdo Tahlillari va Risk Kalkulyatori</h2>
+        
+        <div style="background: rgba(255,255,255,0.03); border:1px solid rgba(255,234,0,0.2); padding: 15px; border-radius: 10px; margin-top: 15px; margin-bottom: 20px;">
+          <h3 style="color:#ffea00; font-size: 14px; margin-bottom: 10px;">🧮 Position Size & Risk Calculator</h3>
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px;">
+            <div class="input-field"><label style="font-size: 11px; color:#aaa;">Xatar foizi (%):</label><input type="number" id="calcRiskPct" value="2"></div>
+            <div class="input-field"><label style="font-size: 11px; color:#aaa;">Kirish Narxi ($):</label><input type="number" id="calcEntryPrice" placeholder="Masalan: 65000"></div>
+            <div class="input-field"><label style="font-size: 11px; color:#aaa;">Stop-Loss Narxi ($):</label><input type="number" id="calcSLPrice" placeholder="Masalan: 64000"></div>
+            <div style="display: flex; align-items: flex-end; margin-bottom: 12px;">
+              <button class="action-btn" onclick="calculateRisk()">Hisoblash</button>
+            </div>
+          </div>
+          <p id="calcResult" style="font-weight: bold; color: #00ff66; font-size: 13px; margin-top: 5px;"></p>
+        </div>
+
+        <div class="metrics-grid">
+          <div class="metric-card"><h4>Jami Savdolar</h4><p id="statTotalTrades">0</p></div>
+          <div class="metric-card"><h4>G'alabalar (Win)</h4><p style="color:#089981;" id="statWinTrades">0</p></div>
+          <div class="metric-card"><h4>Mag'lubiyatlar (Loss)</h4><p style="color:#f23645;" id="statLossTrades">0</p></div>
+          <div class="metric-card"><h4>Win Rate (%)</h4><p id="statWinRate">0%</p></div>
+        </div>
+      </div>
+
+      <!-- HISTORY PAGE -->
+      <div class="content-page" id="history">
+        <h2>📜 Yopilgan Savdolar Tarixi</h2>
+        <table class="custom-table" style="margin-top: 15px;">
+          <thead><tr><th>#ID</th><th>Juftlik</th><th>Turi</th><th>Tikilgan Pul</th><th>Natija (P&L)</th><th>Yopilgan Narx</th></tr></thead>
+          <tbody id="historyTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Scriptning eng yuqori qismiga qo'yiladi:
+const API_URL = 'https://lamp-trading-backend.onrender.com';
+// const socket = new WebSocket('wss://lamp-trading-backend.onrender.com');
+    // 1. Pozitsiya ochish (BUY / SELL tugmasi bosilganda)
+async function openTrade(type) {
+  const token = localStorage.getItem('token');
+  const pair = 'BTC'; // Tanlangan valyuta
+  const amount = parseFloat(document.getElementById('tradeAmount').value) || 100;
+  const leverage = parseInt(document.getElementById('tradeLeverage').value) || 10;
+
+  try {
+    const res = await fetch(`${API_URL}/api/trade/open`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({ pair, type, amount, leverage })
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+      alert(`Pozitsiya ochildi: ${type} $${amount}`);
+      updateUserDashboard(data.balance, data.positions);
+    } else {
+      alert('Xatolik: ' + data.error);
+    }
+  } catch (err) {
+    console.error('Xatolar:', err);
+  }
+}
+
+// 2. Pozitsiyani Yopish
+async function closeTrade(positionId) {
+  const token = localStorage.getItem('token');
+
+  try {
+    const res = await fetch(`${API_URL}/api/trade/close`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({ positionId })
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+      alert('Pozitsiya yopildi!');
+      updateUserDashboard(data.balance, data.positions);
+    } else {
+      alert('Xatolik: ' + data.error);
+    }
+  } catch (err) {
+    console.error('Xatolar:', err);
+  }
+}
+
+// 3. Parolni o'zgartirish
+async function changePassword(oldPassword, newPassword) {
+  const token = localStorage.getItem('token');
+
+  try {
+    const res = await fetch(`${API_URL}/api/user/change-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({ oldPassword, newPassword })
+    });
+
+    const data = await res.json();
+    alert(data.message || data.error);
+  } catch (err) {
+    console.error('Xatolar:', err);
+  }
+}
+    // 1. Backend bilan WebSocket ulanishi (Jonli narxlar uchun)
+// const socket = new WebSocket('wss://lamp-trading-backend.onrender.com');
+
+// socket.onopen = () => {
+//   console.log('✅ Server bilan WebSocket aloqasi o\'rnatildi!');
+// };
+
+socket.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  
+  if (data.type === 'PRICE_UPDATE') {
+    // Serverdan kelayotgan real-vaqt narxlari
+    const livePrices = data.prices;
+    
+    // Agar ekranda narxlarni ko'rsatadigan elementlar bo'lsa, ularни yangilaymiz:
+    if (document.getElementById('btcPrice')) {
+      document.getElementById('btcPrice').innerText = '$' + livePrices.BTC.toFixed(2);
+    }
+    if (document.getElementById('ethPrice')) {
+      document.getElementById('ethPrice').innerText = '$' + livePrices.ETH.toFixed(2);
+    }
+    if (document.getElementById('solPrice')) {
+      document.getElementById('solPrice').innerText = '$' + livePrices.SOL.toFixed(2);
+    }
+  }
+};
+
+// 2. Real Login funksiyasi (Server API orqali)
+async function loginUser(username, password) {
+  try {
+    const response = await fetch(`${API_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      // JWT token va foydalanuvchi ma'lumotlarini saqlash
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+
+      alert('Xush kelibsiz, ' + data.user.username + '!');
+      
+      // Kirish oynasini yopib, Dashboard oynasiga o'tish
+      showDashboard(data.user);
+    } else {
+      alert('Xatolik: ' + data.error);
+    }
+  } catch (error) {
+    console.error('Server bilan ulanishda xatolik:', error);
+    alert('Serverga ulanib bo\'lmadi. Backend yoniqligini tekshiring!');
+  }
+}
+
+// 3. Real Ro'yxatdan o'tish (Register) funksiyasi
+async function registerUser(username, password) {
+  try {
+    const response = await fetch(`${API_URL}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      alert('Ro\'yxatdan o\'tish muvaffaqiyatli! Endi tizimga kiring.');
+    } else {
+      alert('Xatolik: ' + data.error);
+    }
+  } catch (error) {
+    console.error('Xatolik:', error);
+  }
+}
+    const body = document.body;
+    const authBox = document.getElementById('authBox');
+    const lampStage = document.getElementById('lampStage');
+    const appBox = document.getElementById('appBox');
+
+    let currentUser = null;
+    let usdBalance = 10000.00;
+    let selectedPair = 'BTC';
+    let tfMultiplier = 1;
+
+    let prices = { BTC: 65000.00, ETH: 3500.00, SOL: 145.00 };
+    let positions = [];
+    let tradeHistory = [];
+    let usedPromos = [];
+    let activeAlerts = [];
+
+    let candles = [];
+    let macdHist = [];
+
+    // BOT & COPY-TRADING VARIABLES
+    let isBotActive = false;
+    let botCapital = 0;
+    let botPnl = 0;
+    let botTrades = 0;
+    let botTimer = null;
+
+    /* WEB AUDIO API */
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playBeep(freq = 440, type = 'sine', duration = 0.1) {
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.value = freq;
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duration);
+        osc.stop(audioCtx.currentTime + duration);
+      } catch(e){}
+    }
+
+    function showToast(msg, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      if(type === 'success') toast.style.borderLeftColor = '#089981';
+      if(type === 'error') toast.style.borderLeftColor = '#f23645';
+      toast.textContent = msg;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 4000);
+    }
+
+    /* TRADER RANK SYSTEM */
+    function getTraderRank(bal = usdBalance) {
+      if (bal >= 100000) return "Whale 🐋";
+      if (bal >= 50000) return "Gold VIP 🏆";
+      if (bal >= 20000) return "Silver Trader 🥈";
+      return "Bronze Trader 🥉";
+    }
+
+    /* LOCALSTORAGE SYSTEM */
+    function saveUserData() {
+      if (!currentUser) return;
+      let users = JSON.parse(localStorage.getItem('users')) || {};
+      if (users[currentUser]) {
+        users[currentUser].balance = usdBalance;
+        users[currentUser].positions = positions;
+        users[currentUser].tradeHistory = tradeHistory;
+        users[currentUser].usedPromos = usedPromos;
+        users[currentUser].botPnl = botPnl;
+        users[currentUser].botTrades = botTrades;
+        localStorage.setItem('users', JSON.stringify(users));
+        localStorage.setItem('lastLoggedInUser', currentUser);
+      }
+    }
+
+    function loadUserData(username) {
+      let users = JSON.parse(localStorage.getItem('users')) || {};
+      if (users[username]) {
+        currentUser = username;
+        usdBalance = users[username].balance !== undefined ? users[username].balance : 10000.00;
+        positions = users[username].positions || [];
+        tradeHistory = users[username].tradeHistory || [];
+        usedPromos = users[username].usedPromos || [];
+        botPnl = users[username].botPnl || 0;
+        botTrades = users[username].botTrades || 0;
+        document.getElementById('displayUsername').textContent = currentUser;
+      }
+    }
+
+    function resetUserBalance() {
+      if (!currentUser) return;
+      usdBalance = 10000.00;
+      botPnl = 0; botTrades = 0;
+      saveUserData();
+      updateUI();
+      showToast("Balansingiz $10,000 ga tiklandi!", "success");
+    }
+
+    function generateCandles() {
+      candles = []; macdHist = [];
+      let basePrice = prices[selectedPair];
+      for (let i = 0; i < 30; i++) {
+        let open = basePrice;
+        let close = open + (Math.random() - 0.48) * (basePrice * 0.002 * tfMultiplier);
+        let high = Math.max(open, close) + Math.random() * (basePrice * 0.001);
+        let low = Math.min(open, close) - Math.random() * (basePrice * 0.001);
+        candles.push({ open, high, low, close });
+        macdHist.push((Math.random() - 0.5) * 10);
+        basePrice = close;
+      }
+      prices[selectedPair] = basePrice;
+    }
+    generateCandles();
+
+    if (!localStorage.getItem('users')) {
+      localStorage.setItem('users', JSON.stringify({ 
+        "admin": { password: "123", balance: 10000.00, positions: [], tradeHistory: [], usedPromos: [] } 
+      }));
+    }
+
+    function toggleLamp() { 
+      body.classList.toggle('lamp-on'); 
+      playBeep(body.classList.contains('lamp-on') ? 600 : 300, 'sine', 0.15);
+    }
+
+    document.getElementById('toRegister').addEventListener('click', () => {
+      document.getElementById('loginFormSection').style.display = "none";
+      document.getElementById('registerFormSection').style.display = "block";
+    });
+
+    document.getElementById('toLogin').addEventListener('click', () => {
+      document.getElementById('registerFormSection').style.display = "none";
+      document.getElementById('loginFormSection').style.display = "block";
+    });
+
+    function handleRegister(e) {
+      e.preventDefault();
+      const u = document.getElementById('regUsername').value.trim();
+      const p = document.getElementById('regPassword').value.trim();
+      let users = JSON.parse(localStorage.getItem('users')) || {};
+      if (users[u]) { document.getElementById('regMessage').textContent = "Bu nom band!"; }
+      else {
+        users[u] = { password: p, balance: 10000.00, positions: [], tradeHistory: [], usedPromos: [] };
+        localStorage.setItem('users', JSON.stringify(users));
+        document.getElementById('regMessage').style.color = "#089981";
+        document.getElementById('regMessage').textContent = "Muvaffaqiyatli!";
+        setTimeout(() => { document.getElementById('registerFormSection').style.display = "none"; document.getElementById('loginFormSection').style.display = "block"; }, 1000);
+      }
+    }
+
+    function handleLogin(e) {
+      e.preventDefault();
+      const u = document.getElementById('loginUsername').value.trim();
+      const p = document.getElementById('loginPassword').value.trim();
+      let users = JSON.parse(localStorage.getItem('users')) || {};
+      
+      if (users[u] && users[u].password === p) {
+        playBeep(800, 'square', 0.2);
+        loadUserData(u);
+        setTimeout(() => {
+          authBox.style.display = "none"; lampStage.style.display = "none"; appBox.style.display = "grid";
+          updateUI(); initChartEngine(); renderNews();
+          showToast(`Xush kelibsiz, ${u}!`, 'success');
+        }, 400);
+      } else {
+        playBeep(200, 'sawtooth', 0.3);
+        document.getElementById('loginMessage').style.color = "#f23645";
+        document.getElementById('loginMessage').textContent = "Login yoki parol xato!";
+      }
+    }
+
+    function handleLogout() {
+      if(isBotActive) toggleAutoBot();
+      saveUserData();
+      currentUser = null;
+      localStorage.removeItem('lastLoggedInUser');
+      appBox.style.display = "none";
+      lampStage.style.display = "flex";
+      authBox.style.display = "block";
+      body.classList.remove('lamp-on');
+    }
+
+    function setTimeframe(tf, btn) {
+      tfMultiplier = tf;
+      document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      generateCandles();
+    }
+
+    function applyPromo() {
+      const code = document.getElementById('promoInput').value.trim().toUpperCase();
+      if (usedPromos.includes(code)) return showToast("Promokod ishlatilgan!", "error");
+      if (code === "BONUS100") { usdBalance += 1000; usedPromos.push(code); showToast("+$1,000 Qo'shildi!", "success"); playBeep(700, 'sine', 0.2); }
+      else if (code === "PROVIP") { usdBalance *= 1.5; usedPromos.push(code); showToast("Depozit +50% ga oshdi!", "success"); playBeep(900, 'sine', 0.3); }
+      else return showToast("Xato promokod!", "error");
+      
+      document.getElementById('promoInput').value = ""; 
+      saveUserData();
+      updateUI();
+    }
+
+    function claimDailyBonus() {
+      let win = Math.floor(100 + Math.random() * 400);
+      usdBalance += win; 
+      showToast(`🎉 Tabriklaymiz! Omadingiz kelib $${win} yutib oldingiz!`, 'success'); 
+      playBeep(1000, 'triangle', 0.4);
+      saveUserData();
+      updateUI();
+    }
+
+    function setPriceAlert() {
+      let val = parseFloat(document.getElementById('alertPriceInput').value);
+      if (!val) return showToast("Narxni kiriting!", 'error');
+      activeAlerts.push({ pair: selectedPair, price: val });
+      showToast(`🔔 ${selectedPair} $${val} ga yetganda xabar beriladi!`, 'info');
+      document.getElementById('alertPriceInput').value = "";
+    }
+
+    /* COPY TRADING SIMULATOR */
+    function startCopyTrade(traderName, winRate) {
+      let winProb = winRate / 100;
+      let amount = 500;
+      if (usdBalance < amount) return showToast("Balansda kamida $500 bo'lishi kerak!", "error");
+
+      usdBalance -= amount;
+      let isWin = Math.random() < winProb;
+      let profit = isWin ? (amount * (0.2 + Math.random() * 0.5)) : (-amount * 0.3);
+
+      setTimeout(() => {
+        usdBalance += (amount + profit);
+        if (profit >= 0) {
+          showToast(`👥 Copy-Trade (${traderName}): +$${profit.toFixed(2)} foyda!`, 'success');
+          playBeep(880, 'sine', 0.3);
+        } else {
+          showToast(`👥 Copy-Trade (${traderName}): -$${Math.abs(profit).toFixed(2)} zarar!`, 'error');
+          playBeep(250, 'sawtooth', 0.3);
+        }
+        saveUserData();
+        updateUI();
+      }, 2000);
+
+      showToast(`👥 ${traderName} bitimiga $500 nusxalanmoqda...`, 'info');
+    }
+
+    /* AUTO-BOT ENGINE SIMULATOR */
+    function toggleAutoBot() {
+      const btn = document.getElementById('botToggleBtn');
+      const badge = document.getElementById('botStatusBadge');
+      
+      if (!isBotActive) {
+        let cap = parseFloat(document.getElementById('botCapitalInput').value);
+        if (!cap || cap <= 0 || cap > usdBalance) return showToast("Bot uchun yetarli kapital kiriting!", "error");
+        
+        botCapital = cap;
+        usdBalance -= botCapital;
+        isBotActive = true;
+        btn.textContent = "Botni To'xtatish";
+        btn.style.background = "#ff3333";
+        btn.style.color = "#fff";
+        badge.textContent = "YONIK (ISHLAMOQDA)";
+        badge.className = "badge badge-success";
+        
+        showToast("🤖 Auto-Bot savdoni boshladi!", "success");
+
+        botTimer = setInterval(() => {
+          let strategy = document.getElementById('botRiskStrategy').value;
+          let multiplier = strategy === 'HIGH' ? 0.03 : (strategy === 'MEDIUM' ? 0.015 : 0.005);
+          
+          let tradeProfit = (Math.random() - 0.45) * (botCapital * multiplier);
+          botPnl += tradeProfit;
+          botTrades++;
+          
+          document.getElementById('botPnlDisplay').textContent = (botPnl >= 0 ? "+$" : "-$") + Math.abs(botPnl).toFixed(2);
+          document.getElementById('botPnlDisplay').style.color = botPnl >= 0 ? "#089981" : "#f23645";
+          document.getElementById('botTradesCount').textContent = botTrades + " ta";
+          
+          saveUserData();
+          updateUI();
+        }, 3000);
+
+      } else {
+        clearInterval(botTimer);
+        usdBalance += (botCapital + botPnl);
+        isBotActive = false;
+        btn.textContent = "Botni Yoqish";
+        btn.style.background = "#00e5ff";
+        btn.style.color = "#000";
+        badge.textContent = "O'CHIRILGAN";
+        badge.className = "badge badge-danger";
+        
+        showToast("🤖 Bot to'xtatildi, mablag' balansingizga qaytarildi!", "info");
+        saveUserData();
+        updateUI();
+      }
+    }
+
+    function calculateRisk() {
+      let riskPct = parseFloat(document.getElementById('calcRiskPct').value) / 100;
+      let entry = parseFloat(document.getElementById('calcEntryPrice').value);
+      let sl = parseFloat(document.getElementById('calcSLPrice').value);
+
+      if (!entry || !sl || entry === sl) return showToast("To'g'ri narxlarni kiriting!", 'error');
+
+      let maxLossAllowed = usdBalance * riskPct;
+      let priceDiffPct = Math.abs(entry - sl) / entry;
+      let recommendedPositionSize = maxLossAllowed / priceDiffPct;
+
+      document.getElementById('calcResult').textContent = `Tavsiya etiladigan maksimal pozitsiya hajmi: $${recommendedPositionSize.toFixed(2)} (Maks. xataringiz: $${maxLossAllowed.toFixed(2)})`;
+    }
+
+    function changeCryptoPair() {
+      selectedPair = document.getElementById('cryptoPairSelect').value;
+      document.getElementById('pairTitleDisplay').textContent = `Joriy ${selectedPair} Narxi`;
+      generateCandles();
+    }
+
+    function updateUI() {
+      document.getElementById('usdBalance').textContent = "$" + usdBalance.toFixed(2);
+      document.getElementById('activePosCount').textContent = positions.length + " ta";
+      document.getElementById('traderRankDisplay').textContent = getTraderRank();
+      
+      let overallPnl = positions.reduce((acc, pos) => acc + calculatePNL(pos), 0);
+      let pnlElem = document.getElementById('totalPnlDisplay');
+      pnlElem.textContent = (overallPnl >= 0 ? "+$" : "-$") + Math.abs(overallPnl).toFixed(2);
+      pnlElem.style.color = overallPnl >= 0 ? "#089981" : "#f23645";
+
+      renderPositions(); renderHistory(); renderAnalytics(); renderOrderBook(); renderLeaderboard();
+    }
+
+    function switchPage(pageId, element) {
+      document.querySelectorAll('.content-page').forEach(page => page.classList.remove('active'));
+      document.querySelectorAll('.menu-item').forEach(item => item.classList.remove('active'));
+      document.getElementById(pageId).classList.add('active'); element.classList.add('active');
+    }
+
+    /* CHART ENGINE (CANDLESTICKS + BOLLINGER + MACD + RSI) */
+    function initChartEngine() {
+      const canvas = document.getElementById('tradingChart'); const ctx = canvas.getContext('2d');
+      canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight;
+
+      const macdCanvas = document.getElementById('macdChart'); const macdCtx = macdCanvas.getContext('2d');
+      macdCanvas.width = macdCanvas.offsetWidth; macdCanvas.height = macdCanvas.offsetHeight;
+
+      const rsiCanvas = document.getElementById('rsiChart'); const rsiCtx = rsiCanvas.getContext('2d');
+      rsiCanvas.width = rsiCanvas.offsetWidth; rsiCanvas.height = rsiCanvas.offsetHeight;
+
+      let tickCounter = 0;
+
+      setInterval(() => {
+        let curPrice = prices[selectedPair];
+        let change = (Math.random() - 0.48) * (curPrice * 0.001 * tfMultiplier);
+        prices[selectedPair] += change;
+
+        let lastCandle = candles[candles.length - 1];
+        lastCandle.close = prices[selectedPair];
+        if (prices[selectedPair] > lastCandle.high) lastCandle.high = prices[selectedPair];
+        if (prices[selectedPair] < lastCandle.low) lastCandle.low = prices[selectedPair];
+
+        tickCounter++;
+        if (tickCounter >= 5) {
+          tickCounter = 0;
+          candles.push({ open: prices[selectedPair], high: prices[selectedPair], low: prices[selectedPair], close: prices[selectedPair] });
+          macdHist.push((Math.random() - 0.5) * 10);
+          if (candles.length > 30) { candles.shift(); macdHist.shift(); }
+        }
+
+        document.getElementById('livePrice').textContent = "$" + prices[selectedPair].toFixed(2);
+        document.getElementById('currentPriceDisplay').textContent = "$" + prices[selectedPair].toFixed(2);
+
+        checkAlerts();
+        checkAutoCloseAndLiquidation();
+        updateUI();
+        drawCandlesticksAndBollinger(ctx, canvas);
+        drawMACD(macdCtx, macdCanvas);
+        drawRSI(rsiCtx, rsiCanvas);
+      }, 500);
+    }
+
+    function checkAlerts() {
+      activeAlerts.forEach((alertObj, index) => {
+        let cur = prices[alertObj.pair];
+        if (Math.abs(cur - alertObj.price) <= (cur * 0.001)) {
+          showToast(`🚨 ALERT: ${alertObj.pair} narxi $${alertObj.price.toFixed(2)} ga yetdi!`, 'info');
+          playBeep(1200, 'sine', 0.5);
+          activeAlerts.splice(index, 1);
+        }
+      });
+    }
+
+    /* BOLLINGER BANDS INCLUDED */
+    function drawCandlesticksAndBollinger(ctx, canvas) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      let allHighs = candles.map(c => c.high);
+      let allLows = candles.map(c => c.low);
+      let minPrice = Math.min(...allLows); let maxPrice = Math.max(...allHighs);
+      let range = (maxPrice - minPrice) || 1;
+      let candleWidth = (canvas.width / candles.length) - 5;
+
+      let smaPoints = [];
+
+      candles.forEach((c, i) => {
+        let x = i * (candleWidth + 5) + 4;
+        let openY = canvas.height - ((c.open - minPrice) / range) * (canvas.height - 30) - 15;
+        let closeY = canvas.height - ((c.close - minPrice) / range) * (canvas.height - 30) - 15;
+        let highY = canvas.height - ((c.high - minPrice) / range) * (canvas.height - 30) - 15;
+        let lowY = canvas.height - ((c.low - minPrice) / range) * (canvas.height - 30) - 15;
+
+        let color = c.close >= c.open ? "#089981" : "#f23645";
+        ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 1.2;
+        ctx.moveTo(x + candleWidth / 2, highY); ctx.lineTo(x + candleWidth / 2, lowY); ctx.stroke();
+
+        ctx.fillStyle = color;
+        ctx.fillRect(x, Math.min(openY, closeY), candleWidth, Math.abs(closeY - openY) || 2);
+
+        let avg = (c.open + c.close + c.high + c.low) / 4;
+        let avgY = canvas.height - ((avg - minPrice) / range) * (canvas.height - 30) - 15;
+        smaPoints.push({ x: x + candleWidth / 2, y: avgY });
+      });
+
+      // Bollinger Bands (Upper & Lower)
+      ctx.beginPath(); ctx.strokeStyle = "rgba(0, 229, 255, 0.4)"; ctx.lineWidth = 1;
+      smaPoints.forEach((p, i) => { if (i === 0) ctx.moveTo(p.x, p.y - 12); else ctx.lineTo(p.x, p.y - 12); });
+      smaPoints.forEach((p, i) => { ctx.lineTo(p.x, p.y + 12); });
+      ctx.stroke();
+
+      // SMA Line
+      ctx.beginPath(); ctx.strokeStyle = "#ffea00"; ctx.lineWidth = 1.5;
+      smaPoints.forEach((p, i) => { if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
+      ctx.stroke();
+    }
+
+    function drawMACD(ctx, canvas) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#aaa"; ctx.font = "9px sans-serif"; ctx.fillText("MACD Histogram", 5, 10);
+      let step = canvas.width / macdHist.length;
+      macdHist.forEach((val, i) => {
+        let x = i * step;
+        let h = Math.abs(val) * 2;
+        ctx.fillStyle = val >= 0 ? "#089981" : "#f23645";
+        ctx.fillRect(x, canvas.height / 2 - (val >= 0 ? h : 0), step - 2, h || 2);
+      });
+    }
+
+    function drawRSI(ctx, canvas) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#aaa"; ctx.font = "9px sans-serif"; ctx.fillText("RSI (14)", 5, 10);
+
+      ctx.strokeStyle = "rgba(255,255,255,0.15)";
+      ctx.beginPath();
+      ctx.moveTo(0, canvas.height * 0.3); ctx.lineTo(canvas.width, canvas.height * 0.3);
+      ctx.moveTo(0, canvas.height * 0.7); ctx.lineTo(canvas.width, canvas.height * 0.7);
+      ctx.stroke();
+
+      ctx.beginPath(); ctx.strokeStyle = "#00e5ff"; ctx.lineWidth = 1.5;
+      let step = canvas.width / candles.length;
+      candles.forEach((c, i) => {
+        let dummyRsi = 30 + Math.abs(Math.sin(i + Date.now()/1000)) * 40;
+        let y = canvas.height - (dummyRsi / 100) * canvas.height;
+        if (i === 0) ctx.moveTo(i * step, y);
+        else ctx.lineTo(i * step, y);
+      });
+      ctx.stroke();
+    }
+
+    function renderOrderBook() {
+      let cur = prices[selectedPair];
+      document.getElementById('orderBookSell').innerHTML = `
+        <div>${(cur * 1.0004).toFixed(2)} - 1.10 ${selectedPair}</div>
+        <div>${(cur * 1.0002).toFixed(2)} - 0.75 ${selectedPair}</div>
+      `;
+      document.getElementById('orderBookBuy').innerHTML = `
+        <div>${(cur * 0.9998).toFixed(2)} - 2.45 ${selectedPair}</div>
+        <div>${(cur * 0.9996).toFixed(2)} - 1.20 ${selectedPair}</div>
+      `;
+    }
+
+    /* POSITIONS & LIQUIDATION ENGINE */
+    function openPosition(type) {
+      let amountInput = type === 'BUY' ? document.getElementById('buyAmount') : document.getElementById('sellAmount');
+      let leverageInput = type === 'BUY' ? document.getElementById('buyLeverage') : document.getElementById('sellLeverage');
+      let tpInput = type === 'BUY' ? document.getElementById('buyTP') : document.getElementById('sellTP');
+      let slInput = type === 'BUY' ? document.getElementById('buySL') : document.getElementById('sellSL');
+      let tsInput = type === 'BUY' ? document.getElementById('buyTS') : document.getElementById('sellTS');
+
+      let amount = parseFloat(amountInput.value);
+      let leverage = parseInt(leverageInput.value);
+      let tp = parseFloat(tpInput.value) || null;
+      let sl = parseFloat(slInput.value) || null;
+      let ts = parseFloat(tsInput.value) || null;
+
+      if (!amount || amount <= 0 || usdBalance < amount) return showToast("Balansda mablag' yetarli emas!", "error");
+
+      usdBalance -= amount;
+
+      positions.push({
+        id: Math.floor(1000 + Math.random() * 9000),
+        pair: selectedPair,
+        type: type,
+        amount: amount,
+        leverage: leverage,
+        entryPrice: prices[selectedPair],
+        highestPrice: prices[selectedPair],
+        lowestPrice: prices[selectedPair],
+        tp: tp,
+        sl: sl,
+        trailingStop: ts
+      });
+
+      playBeep(600, 'triangle', 0.2);
+      showToast(`${type} pozitsiyasi ochildi (#${positions[positions.length - 1].id})`, 'success');
+      amountInput.value = "";
+      
+      saveUserData();
+      updateUI();
+    }
+
+    function calculatePNL(pos) {
+      let cur = prices[pos.pair];
+      let diff = pos.type === 'BUY' ? (cur - pos.entryPrice) : (pos.entryPrice - cur);
+      return (diff / pos.entryPrice) * pos.amount * pos.leverage;
+    }
+
+    function closePosition(index, reason = "Qo'lda yopildi") {
+      let pos = positions[index];
+      let pnl = calculatePNL(pos);
+      usdBalance += pos.amount + pnl;
+
+      tradeHistory.push({
+        id: pos.id,
+        pair: pos.pair,
+        type: pos.type,
+        amount: pos.amount,
+        pnl: pnl,
+        closePrice: prices[pos.pair],
+        reason: reason
+      });
+
+      positions.splice(index, 1);
+      if(pnl >= 0) { playBeep(900, 'sine', 0.3); showToast(`Pozitsiya yopildi: +$${pnl.toFixed(2)}`, 'success'); }
+      else { playBeep(300, 'sawtooth', 0.3); showToast(`Pozitsiya yopildi: -$${Math.abs(pnl).toFixed(2)}`, 'error'); }
+
+      saveUserData();
+      updateUI();
+    }
+
+    function checkAutoCloseAndLiquidation() {
+      let lowestLiqPrice = Infinity;
+
+      for (let i = positions.length - 1; i >= 0; i--) {
+        let pos = positions[i];
+        let cur = prices[pos.pair];
+        let pnl = calculatePNL(pos);
+
+        if (pnl <= -pos.amount * 0.9) {
+          closePosition(i, "LIKVIDATSIYA ⚠️");
+          continue;
+        }
+
+        let liqPrice = pos.type === 'BUY' 
+          ? pos.entryPrice * (1 - 0.9 / pos.leverage)
+          : pos.entryPrice * (1 + 0.9 / pos.leverage);
+        if (liqPrice < lowestLiqPrice) lowestLiqPrice = liqPrice;
+
+        if (pos.tp) {
+          if (pos.type === 'BUY' && cur >= pos.tp) { closePosition(i, "Take Profit 🎯"); continue; }
+          if (pos.type === 'SELL' && cur <= pos.tp) { closePosition(i, "Take Profit 🎯"); continue; }
+        }
+        if (pos.sl) {
+          if (pos.type === 'BUY' && cur <= pos.sl) { closePosition(i, "Stop Loss 🛑"); continue; }
+          if (pos.type === 'SELL' && cur >= pos.sl) { closePosition(i, "Stop Loss 🛑"); continue; }
+        }
+
+        if (pos.trailingStop) {
+          if (pos.type === 'BUY') {
+            if (cur > pos.highestPrice) pos.highestPrice = cur;
+            if (cur <= pos.highestPrice - pos.trailingStop) { closePosition(i, "Trailing Stop 📈"); continue; }
+          } else {
+            if (cur < pos.lowestPrice) pos.lowestPrice = cur;
+            if (cur >= pos.lowestPrice + pos.trailingStop) { closePosition(i, "Trailing Stop 📉"); continue; }
+          }
+        }
+      }
+
+      document.getElementById('liqPriceDisplay').textContent = lowestLiqPrice === Infinity ? "$0.00" : "$" + lowestLiqPrice.toFixed(2);
+    }
+
+    function renderPositions() {
+      const tbody = document.getElementById('positionsTableBody');
+      tbody.innerHTML = "";
+      positions.forEach((pos, index) => {
+        let cur = prices[pos.pair];
+        let pnl = calculatePNL(pos);
+        let tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>#${pos.id}</td>
+          <td><b>${pos.pair}</b></td>
+          <td><span class="badge ${pos.type === 'BUY' ? 'badge-success' : 'badge-danger'}">${pos.type}</span></td>
+          <td>x${pos.leverage}</td>
+          <td>$${pos.amount.toFixed(2)}</td>
+          <td>$${pos.entryPrice.toFixed(2)}</td>
+          <td>$${cur.toFixed(2)}</td>
+          <td>${pos.sl ? '$' + pos.sl.toFixed(2) : '-'}</td>
+          <td class="${pnl >= 0 ? 'pnl-plus' : 'pnl-minus'}">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</td>
+          <td><button class="btn-close-pos" onclick="closePosition(${index})">Yopish</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderHistory() {
+      const tbody = document.getElementById('historyTableBody');
+      tbody.innerHTML = "";
+      tradeHistory.slice().reverse().forEach(h => {
+        let tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>#${h.id}</td>
+          <td><b>${h.pair}</b></td>
+          <td><span class="badge ${h.type === 'BUY' ? 'badge-success' : 'badge-danger'}">${h.type}</span></td>
+          <td>$${h.amount.toFixed(2)}</td>
+          <td class="${h.pnl >= 0 ? 'pnl-plus' : 'pnl-minus'}">${h.pnl >= 0 ? '+' : ''}$${h.pnl.toFixed(2)} (${h.reason})</td>
+          <td>$${h.closePrice.toFixed(2)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderLeaderboard() {
+      let users = JSON.parse(localStorage.getItem('users')) || {};
+      let sorted = Object.keys(users).map(u => ({ username: u, balance: users[u].balance || 10000 }))
+        .sort((a,b) => b.balance - a.balance);
+
+      const tbody = document.getElementById('leaderboardTableBody');
+      tbody.innerHTML = "";
+      sorted.forEach((item, idx) => {
+        let tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><b>#${idx + 1}</b></td>
+          <td>${item.username} ${item.username === currentUser ? '(Siz)' : ''}</td>
+          <td>${getTraderRank(item.balance)}</td>
+          <td style="color:#ffea00; font-weight:bold;">$${item.balance.toFixed(2)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderNews() {
+      const newsList = [
+        { title: "🚀 Bitcoin $70,000 marrasiga yaqinlashmoqda", desc: "Institutsional investorlar oqimi hisobiga narx keskin ko'tarildi." },
+        { title: "⚡ Ethereum 2.0 tarmoq yangilanishi e'lon qilindi", desc: "Tranzaksiya komissiyalari 40% ga arzonlashishi kutilmoqda." },
+        { title: "⚠️ FED foiz stavkalarini o'zgarishsiz qoldirdi", desc: "Bozorda mo''tadil tebranishlar kuzatilmoqda." }
+      ];
+      const container = document.getElementById('newsContainer');
+      container.innerHTML = "";
+      newsList.forEach(news => {
+        let div = document.createElement('div');
+        div.className = 'news-card';
+        div.innerHTML = `<h3 style="color:#ffea00; font-size:14px;">${news.title}</h3><p style="font-size:12px; color:#aaa; margin-top:4px;">${news.desc}</p>`;
+        container.appendChild(div);
+      });
+    }
+
+    function renderAnalytics() {
+      let total = tradeHistory.length;
+      let wins = tradeHistory.filter(h => h.pnl > 0).length;
+      let losses = tradeHistory.filter(h => h.pnl < 0).length;
+      let winRate = total > 0 ? ((wins / total) * 100).toFixed(1) : 0;
+
+      document.getElementById('statTotalTrades').textContent = total;
+      document.getElementById('statWinTrades').textContent = wins;
+      document.getElementById('statLossTrades').textContent = losses;
+      document.getElementById('statWinRate').textContent = winRate + "%";
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      let lastUser = localStorage.getItem('lastLoggedInUser');
+      if (lastUser) {
+        loadUserData(lastUser);
+        authBox.style.display = "none"; lampStage.style.display = "none"; appBox.style.display = "grid";
+        updateUI(); initChartEngine(); renderNews();
+      }
+    });
+  </script>
+</body>
+</html>
